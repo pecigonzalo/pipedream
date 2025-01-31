@@ -6,8 +6,8 @@ export default {
   ...base,
   key: "notion-create-page",
   name: "Create Page",
-  description: "Creates a page from a parent page. The only valid property is *title*. [See the docs](https://developers.notion.com/reference/post-page)",
-  version: "0.2.6",
+  description: "Creates a page from a parent page. The only valid property is *title*. [See the documentation](https://developers.notion.com/reference/post-page)",
+  version: "0.2.13",
   type: "action",
   props: {
     notion,
@@ -36,6 +36,7 @@ export default {
       type: "string",
       label: "Page Content",
       description: "Content of the page. You can use Markdown syntax [See docs](https://www.notion.so/help/writing-and-editing-basics#markdown-&-shortcuts)",
+      optional: true,
     },
   },
   async additionalProps() {
@@ -67,11 +68,40 @@ export default {
         children,
       };
     },
+    splitChildrenArray(children) {
+      const first100Children = children.slice(0, 100);
+      const restOfChildren = children.slice(100);
+      return {
+        first100Children,
+        restOfChildren,
+      };
+    },
+    async appendChildren(pageId, children) {
+      while (children.length) {
+        const {
+          first100Children, restOfChildren,
+        } = this.splitChildrenArray(children);
+        await this.notion.appendBlock(pageId, first100Children);
+        children = restOfChildren;
+      }
+    },
   },
   async run({ $ }) {
     const parentPage = await this.notion.retrievePage(this.parent);
     const page = this.buildPage(parentPage);
+
+    // Notion restricts children array length to <= 100
+    const {
+      first100Children, restOfChildren,
+    } = this.splitChildrenArray(page.children);
+    page.children = first100Children;
+
     const response = await this.notion.createPage(page);
+
+    if (restOfChildren.length) {
+      await this.appendChildren(response.id, restOfChildren);
+    }
+
     $.export("$summary", "Created page successfully");
     return response;
   },

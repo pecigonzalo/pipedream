@@ -5,6 +5,7 @@ const TYPE = {
   array: "string[]",
   user: "string",
   issuelink: "string",
+  issuetype: "string",
 };
 
 const FIELD_KEY = {
@@ -33,9 +34,12 @@ const SCHEMA = {
   },
 };
 
+const DEFAULT_LIMIT = 50;
+
 export default {
   TYPE,
   FIELD_KEY,
   FIELD_TYPE,
   SCHEMA,
+  DEFAULT_LIMIT,
 };

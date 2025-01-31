@@ -4,9 +4,30 @@ export default {
       accountId: this.account,
     });
     const tabs = await this.docusign.listTemplateTabs(baseUri, this.template);
-    return this._buildTemplateTabsProps(tabs);
+    const templateRecipientsResponse = await this.docusign.listTemplateRecipients(
+      baseUri,
+      this.template,
+    );
+
+    const props = {};
+    this._buildRecipientsProps(templateRecipientsResponse, props);
+    return this._buildTemplateTabsProps(tabs, props);
   },
   methods: {
+    _buildRecipientsProps(templateRecipientsResponse, props) {
+      templateRecipientsResponse.signers.forEach((signer) => {
+        props[signer.roleName + " - Name"] = {
+          type: "string",
+          label: signer.roleName + " - Name",
+          description: `The name of the ${signer.roleName} recipient`,
+        };
+        props[signer.roleName + " - Email"] = {
+          type: "string",
+          label: signer.roleName + " - Email",
+          description: `The email of the ${signer.roleName} recipient`,
+        };
+      });
+    },
     _getStatusType() {
       throw new Error("_getStatusType is not defined");
     },
@@ -30,6 +51,13 @@ export default {
       switch (tabType) {
       case "textTabs":
       case "formulaTabs":
+      case "numericalTabs":
+      case "numberTabs":
+      case "dateTabs":
+      case "noteTabs":
+      case "emailTabs":
+      case "ssnTabs":
+      case "zipTabs":
         propType = "string";
         propLabel = tab.tabLabel;
         propDefault = tab.value
@@ -56,13 +84,8 @@ export default {
           ? tab.value
           : undefined;
         break;
-      case "dateTabs":
       case "notarizeTabs":
-      case "noteTabs":
-      case "numberTabs":
-      case "ssnTabs":
       case "viewTabs":
-      case "zipTabs":
         console.log(`Not yet implemented tab type: ${tabType}`);
         return;
       default:
@@ -102,6 +125,11 @@ export default {
     _insertTabValue(tabType, tab, value) {
       switch (tabType) {
       case "textTabs":
+      case "dateTabs":
+      case "noteTabs":
+      case "emailTabs":
+      case "ssnTabs":
+      case "zipTabs":
         tab.value = value;
         return true;
       case "checkboxTabs":
@@ -125,13 +153,13 @@ export default {
           .filter((radio) => radio.value === value)
           .forEach((radio) => radio.selected = true);
         return true;
-      case "dateTabs":
-      case "notarizeTabs":
-      case "noteTabs":
+      case "numericalTabs":
       case "numberTabs":
-      case "ssnTabs":
+        tab.value = +value;
+        tab.numericalValue = +value;
+        return true;
+      case "notarizeTabs":
       case "viewTabs":
-      case "zipTabs":
         console.log(`Not yet implemented tab type: ${tabType}`);
         return false;
       default:
@@ -146,25 +174,38 @@ export default {
       accountId: this.account,
     });
 
+    const templateRecipientsResponse = await this.docusign.listTemplateRecipients(
+      baseUri,
+      this.template,
+    );
+
     const originalTabs = await this.docusign.listTemplateTabs(baseUri, this.template);
     const tabs = this._setTemplateTabs(originalTabs, this);
+
+    const templateRoles = templateRecipientsResponse.signers.map((role) => {
+      const roleTabs = {};
+      Object.keys(tabs).forEach((key) => {
+        roleTabs[key] = tabs[key].filter((tab) => tab.recipientId === role.recipientIdGuid);
+      });
+
+      return {
+        roleName: role.roleName,
+        name: this[`${role.roleName} - Name`],
+        email: this[`${role.roleName} - Email`],
+        tabs: roleTabs,
+      };
+    });
 
     const data = {
       status: this._getStatusType(),
       templateId: this.template,
-      templateRoles: [
-        {
-          roleName: this.role,
-          name: this.recipientName,
-          email: this.recipientEmail,
-          tabs,
-        },
-      ],
+      templateRoles: templateRoles,
       emailSubject: this.emailSubject,
     };
     if (this.emailBlurb) {
       data.emailBlurb = this.emailBlurb;
     }
+
     const resp = await this.docusign.createEnvelope({
       $,
       baseUri,

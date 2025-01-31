@@ -1,12 +1,15 @@
 import clickup from "../../clickup.app.mjs";
-import common from "../common/list-props.mjs";
+import builder from "../../common/builder.mjs";
+import propsFragments from "../../common/props-fragments.mjs";
 import constants from "../common/constants.mjs";
+import common from "../common/list-props.mjs";
 
 export default {
+  ...common,
   key: "clickup-create-task",
   name: "Create Task",
   description: "Creates a new task. See the docs [here](https://clickup.com/api) in **Tasks / Create Task** section.",
-  version: "0.0.10",
+  version: "0.0.14",
   type: "action",
   props: {
     ...common.props,
@@ -19,6 +22,12 @@ export default {
       label: "Description",
       type: "string",
       description: "The description of task",
+      optional: true,
+    },
+    markdownDescription: {
+      label: "Markdown Description",
+      type: "string",
+      description: "The description of task with markdown formatting",
       optional: true,
     },
     priority: {
@@ -48,27 +57,6 @@ export default {
       ],
       optional: true,
     },
-    status: {
-      propDefinition: [
-        clickup,
-        "statuses",
-        (c) => ({
-          listId: c.listId,
-        }),
-      ],
-      optional: true,
-    },
-    parent: {
-      label: "Parent Task",
-      propDefinition: [
-        clickup,
-        "tasks",
-        (c) => ({
-          listId: c.listId,
-        }),
-      ],
-      optional: true,
-    },
     dueDate: {
       type: "string",
       label: "Due Date",
@@ -81,12 +69,29 @@ export default {
       description: "If set `true`, due date will be given with time. If not it will only be the closest date",
       optional: true,
     },
+    listWithFolder: {
+      propDefinition: [
+        common.props.clickup,
+        "listWithFolder",
+      ],
+    },
   },
+  additionalProps: builder.buildListProps({
+    tailProps: {
+      status: propsFragments.status,
+      parent: {
+        ...propsFragments.taskId,
+        label: "Parent Task",
+        optional: true,
+      },
+    },
+  }),
   async run({ $ }) {
     const {
       listId,
       name,
       description,
+      markdownDescription,
       priority,
       assignees,
       tags,
@@ -103,6 +108,7 @@ export default {
       data: {
         name,
         description,
+        markdown_description: markdownDescription,
         priority: constants.PRIORITIES[priority] || constants.PRIORITIES["Normal"],
         assignees,
         tags,

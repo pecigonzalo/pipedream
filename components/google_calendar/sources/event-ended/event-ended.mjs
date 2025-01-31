@@ -1,13 +1,23 @@
-import common from "../common.mjs";
+import common from "../common/common.mjs";
+import sampleEmit from "./test-event.mjs";
 
 export default {
   ...common,
   key: "google_calendar-event-ended",
-  name: "Event Ended",
-  description: "Emits when an event ends",
-  version: "0.1.2",
+  name: "New Ended Event",
+  description: "Emit new event when a Google Calendar event ends",
+  version: "0.1.10",
   type: "source",
-  dedupe: "unique", // Dedupe events based on the Google Calendar event ID
+  dedupe: "unique",
+  props: {
+    ...common.props,
+    calendarId: {
+      propDefinition: [
+        common.props.googleCalendar,
+        "calendarId",
+      ],
+    },
+  },
   methods: {
     ...common.methods,
     getConfig({
@@ -32,4 +42,5 @@ export default {
       return eventEnd && msFromEnd > 0 && msFromEnd < intervalMs;
     },
   },
+  sampleEmit,
 };

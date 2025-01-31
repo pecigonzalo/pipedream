@@ -1,11 +1,15 @@
-import common from "../common/task-props.mjs";
+import { ConfigurationError } from "@pipedream/platform";
+import builder from "../../common/builder.mjs";
+import propsFragments from "../../common/props-fragments.mjs";
 import constants from "../common/constants.mjs";
+import common from "../common/task-props.mjs";
 
 export default {
+  ...common,
   key: "clickup-update-task",
   name: "Update Task",
   description: "Update a task. See the docs [here](https://clickup.com/api) in **Tasks / Update Task** section.",
-  version: "0.0.7",
+  version: "0.0.11",
   type: "action",
   props: {
     ...common.props,
@@ -38,30 +42,41 @@ export default {
       ],
       optional: true,
     },
-    status: {
-      propDefinition: [
-        common.props.clickup,
-        "statuses",
-        (c) => ({
-          listId: c.listId,
-        }),
-      ],
+    dueDate: {
+      label: "Due Date",
+      type: "string",
+      description: "The due date of task, please use `YYYY-MM-DD` format",
       optional: true,
     },
-    parent: {
-      label: "Parent Task",
+    startDate: {
+      label: "Start Date",
+      type: "string",
+      description: "The start date of task, please use `YYYY-MM-DD` format",
+      optional: true,
+    },
+    listWithFolder: {
+      optional: true,
       propDefinition: [
         common.props.clickup,
-        "tasks",
-        (c) => ({
-          listId: c.listId,
-          useCustomTaskIds: c.useCustomTaskIds,
-          authorizedTeamId: c.authorizedTeamId,
-        }),
+        "listWithFolder",
       ],
-      optional: true,
     },
   },
+  additionalProps: builder.buildListProps({
+    listPropsOptional: true,
+    tailProps: {
+      taskId: {
+        ...propsFragments.taskId,
+        description: "To show options please select a **List** first",
+      },
+      status: propsFragments.status,
+      parent: {
+        ...propsFragments.taskId,
+        label: "Parent Task",
+        optional: true,
+      },
+    },
+  }),
   async run({ $ }) {
     const {
       taskId,
@@ -87,7 +102,21 @@ export default {
       },
       status,
       parent,
+      due_date: this.dueDate
+        ? new Date(this.dueDate).getTime()
+        : undefined,
+      start_date: this.startDate
+        ? new Date(this.startDate).getTime()
+        : undefined,
     };
+
+    if (data.due_date && isNaN(data.due_date)) {
+      throw new ConfigurationError("Due date is not a valid date");
+    }
+
+    if (data.start_date && isNaN(data.start_date)) {
+      throw new ConfigurationError("Start date is not a valid date");
+    }
 
     if (priority) data[priority] = constants.PRIORITIES[priority];
 

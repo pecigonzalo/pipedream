@@ -1,4 +1,3 @@
-import app from "../../app/twitter.app";
 import { defineSource } from "@pipedream/types";
 import common from "../common/base";
 import { getUserSummary as getItemSummary } from "../common/getItemSummary";
@@ -9,19 +8,22 @@ import {
 } from "../../actions/list-followers/list-followers";
 import { User } from "../../common/types/responseSchemas";
 import cacheUserId from "../common/cacheUserId";
+import {
+  getObjIncludes, getUserIncludeIds,
+} from "../../common/addObjIncludes";
 
 export default defineSource({
   ...common,
   key: "twitter-new-follower-of-user",
   name: "New Follower Received by User",
   description: `Emit new event when the specified User receives a Follower [See the documentation](${DOCS_LINK})`,
-  version: "2.0.2",
+  version: "2.1.0",
   type: "source",
   props: {
     ...common.props,
     userNameOrId: {
       propDefinition: [
-        app,
+        common.props.app,
         "userNameOrId",
       ],
     },
@@ -44,7 +46,10 @@ export default defineSource({
         userId,
       };
 
-      const { data } = await this.app.getUserFollowers(params);
+      const {
+        data, includes,
+      } = await this.app.getUserFollowers(params);
+      data.forEach((user) => user.includes = getObjIncludes(user, includes, getUserIncludeIds));
       return data;
     },
   },

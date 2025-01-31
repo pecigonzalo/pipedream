@@ -1,10 +1,12 @@
 import deepgram from "../../deepgram.app.mjs";
+import { ConfigurationError } from "@pipedream/platform";
+import fs from "fs";
 
 export default {
   key: "deepgram-transcribe-audio",
   name: "Transcribe Audio",
   description: "Transcribes the specified audio file. [See the documentation](https://developers.deepgram.com/api-reference/transcription/#transcribe-pre-recorded-audio)",
-  version: "0.0.1",
+  version: "0.0.4",
   type: "action",
   props: {
     deepgram,
@@ -12,6 +14,13 @@ export default {
       type: "string",
       label: "URL",
       description: "URL of audio file to transcribe",
+      optional: true,
+    },
+    filePath: {
+      type: "string",
+      label: "File Path",
+      description: "The path to the file saved to the `/tmp` directory (e.g. `/tmp/example.mp3`). [See the documentation](https://pipedream.com/docs/workflows/steps/code/nodejs/working-with-files/#the-tmp-directory).",
+      optional: true,
     },
     tier: {
       propDefinition: [
@@ -42,7 +51,7 @@ export default {
       type: "boolean",
       label: "Detect Language",
       description: "Indicates whether to detect the language of the provided audio",
-      optional: true,
+      default: true,
     },
     punctuate: {
       type: "boolean",
@@ -77,8 +86,8 @@ export default {
     smartFormat: {
       type: "boolean",
       label: "Smart Format",
-      description: "Indicates whether to apply formatting to transcript output",
-      optional: true,
+      description: "Applies additional formatting to transcripts to optimize them for human readability.",
+      default: true,
     },
     multiChannel: {
       type: "boolean",
@@ -164,8 +173,23 @@ export default {
       description: "Tag to associate with the request",
       optional: true,
     },
+    callbackWithSuspend: {
+      type: "boolean",
+      label: "Callback with Suspend",
+      description: "Use the `$.flow.suspend` Node.js helper to suspend the workflow until the transcription is completed. Overrides the `callback` parameter to Deepgram.",
+      optional: true,
+    },
   },
   async run({ $ }) {
+    if (!this.url && !this.filePath) {
+      throw new ConfigurationError("Either URL or File Path must be provided.");
+    }
+
+    let callback  = this.callback;
+    if (this.callbackWithSuspend) {
+      ({ resume_url: callback } = $.flow.suspend());
+    }
+
     const params = {
       tier: this.tier,
       model: this.model,
@@ -183,7 +207,7 @@ export default {
       numerals: this.numerals,
       search: this.search,
       replace: this.replace,
-      callback: this.callback,
+      callback,
       keywords: this.keywords,
       paragraph: this.paragraph,
       summarize: this.summarize,
@@ -194,13 +218,26 @@ export default {
       tag: this.tag,
     };
 
-    const response = await this.deepgram.transcribeAudio({
-      data: {
-        url: this.url,
-      },
+    const config = {
       params,
       $,
-    });
+    };
+
+    if (this.url) {
+      config.data = {
+        url: this.url,
+      };
+    }
+    if (this.filePath) {
+      config.data = fs.readFileSync(this.filePath.includes("tmp/")
+        ? this.filePath
+        : `/tmp/${this.filePath}`);
+      config.headers = {
+        "Content-Type": "application/octet-stream",
+      };
+    }
+
+    const response = await this.deepgram.transcribeAudio(config);
 
     if (response) {
       $.export("$summary", "Successfully transcribed audio");

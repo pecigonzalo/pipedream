@@ -33,9 +33,17 @@ const NOTION_PAGE_PROPERTIES = {
       number: property.value,
     }),
   },
+  status: {
+    type: "string",
+    options: (property) => property.status?.options.map((option) => option.name),
+    convertToNotion: (property) => ({
+      status: {
+        name: property.value,
+      },
+    }),
+  },
   select: {
     type: "string",
-    example: "3f806034-9c48-4519-871e-60c9c32d73d8",
     options: (property) => property.select?.options.map((option) => option.name),
     convertToNotion: (property) => ({
       select: {
@@ -56,12 +64,16 @@ const NOTION_PAGE_PROPERTIES = {
   },
   date: {
     type: "string",
-    example: "2022-05-15T18:47:00.000Z",
+    example: "2022-05-15T18:47:00.000Z or { \"start\": \"2022-05-15T18:47:00.000Z\", \"end\": \"2022-06-15T18:47:00.000Z\" }",
     options: () => undefined,
     convertToNotion: (property) => ({
-      date: {
-        start: property.value,
-      },
+      date: !(typeof (property.value) === "string")
+        ? property.value
+        : property.value.trim().startsWith("{")
+          ? JSON.parse(property.value)
+          : {
+            start: property.value,
+          },
     }),
   },
   people: {

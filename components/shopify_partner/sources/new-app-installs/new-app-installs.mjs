@@ -6,7 +6,7 @@ export default {
   key: "shopify_partner-new-app-installs",
   name: "New App Installs",
   type: "source",
-  version: "0.0.14",
+  version: "0.1.3",
   description: "Emit new events when new shops install your app.",
   ...common,
   props: {
@@ -33,17 +33,18 @@ export default {
   },
   async run() {
     const {
-      appId,
-      occurredAtMin,
-      occurredAtMax,
-      db,
+      appId, occurredAtMin, occurredAtMax, db,
     } = this;
 
     const variables = {
       appId: `gid://partners/App/${appId}`,
-      ...(occurredAtMin || {}),
-      ...(occurredAtMax || {}),
     };
+    if (occurredAtMin) {
+      variables.occurredAtMin = occurredAtMin.trim();
+    }
+    if (occurredAtMax) {
+      variables.occurredAtMax = occurredAtMax.trim();
+    }
 
     await this.shopify.query({
       db,
@@ -51,12 +52,14 @@ export default {
       query: getAppInstalls,
       variables,
       handleEmit: (data) => {
-        data.app.events.edges.map(({ node: { ...event } }) => {
-          this.$emit(event, {
-            id: event.occurredAt,
-            summary: `${event.shop.name} (${event.shop.myshopifyDomain}) installed ${event.app.name}`,
+        if (data?.app?.events) {
+          data.app.events.edges.map(({ node: { ...event } }) => {
+            this.$emit(event, {
+              id: event.occurredAt,
+              summary: `${event.shop.name} (${event.shop.myshopifyDomain}) installed ${event.app.name}`,
+            });
           });
-        });
+        }
       },
       getCursor: (data) => {
         const edges = data?.transactions?.edges || [];

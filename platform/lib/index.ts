@@ -15,7 +15,23 @@ export {
 } from "./errors";
 
 export {
+  default as sqlProp,
+} from "./sql-prop";
+export type {
+  ColumnSchema,
+  DbInfo,
+  TableInfo,
+  TableMetadata,
+  TableSchema,
+} from "./sql-prop";
+
+export {
+  default as sqlProxy,
+} from "./sql-proxy";
+
+export {
   DEFAULT_POLLING_SOURCE_TIMER_INTERVAL,
+  PD_OFFICIAL_GMAIL_OAUTH_CLIENT_ID,
 } from "./constants";
 
 const SendPayload = t.union([

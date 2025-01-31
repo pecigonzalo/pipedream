@@ -1,0 +1,20 @@
+{
+  "name": "@pipedream/shopify_developer_app",
+  "version": "0.6.1",
+  "description": "Pipedream Shopify (Developer App) Components",
+  "main": "shopify_developer_app.app.mjs",
+  "keywords": [
+    "pipedream",
+    "shopify_developer_app"
+  ],
+  "homepage": "https://pipedream.com/apps/shopify_developer_app",
+  "author": "Pipedream <support@pipedream.com> (https://pipedream.com/)",
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@pipedream/platform": "^3.0.0",
+    "@pipedream/shopify": "^0.6.5",
+    "shopify-api-node": "^3.12.5"
+  }
+}

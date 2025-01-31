@@ -3,3 +3,6 @@ packages:
   - 'components/**'
   - 'helpers/**'
   - 'platform/**'
+  - 'packages/**'
+  - 'docs-v2/**'
+  - 'scripts/**'

@@ -1,4 +1,3 @@
-import app from "../../app/twitter.app";
 import { defineSource } from "@pipedream/types";
 import common from "../common/base";
 import { getTweetSummary as getItemSummary } from "../common/getItemSummary";
@@ -9,19 +8,22 @@ import {
 } from "../../actions/list-favorites/list-favorites";
 import { Tweet } from "../../common/types/responseSchemas";
 import cacheUserId from "../common/cacheUserId";
+import {
+  getObjIncludes, getTweetIncludeIds,
+} from "../../common/addObjIncludes";
 
 export default defineSource({
   ...common,
   key: "twitter-new-tweet-liked-by-user",
   name: "New Tweet Liked by User",
   description: `Emit new event when a Tweet is liked by the specified User [See the documentation](${DOCS_LINK})`,
-  version: "2.0.2",
+  version: "2.1.0",
   type: "source",
   props: {
     ...common.props,
     userNameOrId: {
       propDefinition: [
-        app,
+        common.props.app,
         "userNameOrId",
       ],
     },
@@ -44,7 +46,10 @@ export default defineSource({
         userId,
       };
 
-      const { data } = await this.app.getUserLikedTweets(params);
+      const {
+        data, includes,
+      } = await this.app.getUserLikedTweets(params);
+      data.forEach((tweet) => tweet.includes = getObjIncludes(tweet, includes, getTweetIncludeIds));
       return data;
     },
   },

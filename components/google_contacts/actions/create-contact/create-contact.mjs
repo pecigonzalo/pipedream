@@ -4,8 +4,8 @@ export default {
   ...common,
   key: "google_contacts-create-contact",
   name: "Create Contact",
-  description: "Creates a contact. [See the docs here](https://developers.google.com/people/api/rest/v1/people/createContact)",
-  version: "0.0.1",
+  description: "Creates a contact. [See the documentation](https://developers.google.com/people/api/rest/v1/people/createContact)",
+  version: "0.1.0",
   type: "action",
   props: {
     ...common.props,
@@ -20,7 +20,7 @@ export default {
     },
   },
   async additionalProps() {
-    return this.getPersonFieldProps(this.personFields, true);
+    return this.getPersonFieldProps(this.personFields);
   },
   methods: {
     ...common.methods,
@@ -29,7 +29,7 @@ export default {
 
       return this.googleContacts.createContact(client, {
         requestBody,
-        personFields: this.personFields.join(),
+        personFields: this.getPersonFields(this.personFields),
       });
     },
     emitSummary($, results) {

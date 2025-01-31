@@ -1,4 +1,3 @@
-import app from "../../app/twitter.app";
 import { defineSource } from "@pipedream/types";
 import common from "../common/base";
 import { getTweetSummary as getItemSummary } from "../common/getItemSummary";
@@ -8,19 +7,22 @@ import { Tweet } from "../../common/types/responseSchemas";
 import {
   DOCS_LINK, MAX_RESULTS_PER_PAGE,
 } from "../../actions/simple-search-in-list/simple-search-in-list";
+import {
+  getObjIncludes, getTweetIncludeIds,
+} from "../../common/addObjIncludes";
 
 export default defineSource({
   ...common,
   key: "twitter-new-tweet-in-list",
   name: "New Tweet Posted in List",
   description: `Emit new event when a Tweet is posted in the specified list [See the documentation](${DOCS_LINK})`,
-  version: "2.0.2",
+  version: "2.1.0",
   type: "source",
   props: {
     ...common.props,
     listId: {
       propDefinition: [
-        app,
+        common.props.app,
         "listId",
       ],
     },
@@ -41,7 +43,10 @@ export default defineSource({
         params: this.getTweetFields(),
       };
 
-      const { data } = await this.app.getListTweets(params);
+      const {
+        data, includes,
+      } = await this.app.getListTweets(params);
+      data.forEach((tweet) => tweet.includes = getObjIncludes(tweet, includes, getTweetIncludeIds));
       return data;
     },
   },

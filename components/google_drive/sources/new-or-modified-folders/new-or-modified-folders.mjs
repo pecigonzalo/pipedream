@@ -13,14 +13,14 @@ import {
   GOOGLE_DRIVE_NOTIFICATION_ADD,
   GOOGLE_DRIVE_NOTIFICATION_CHANGE,
   GOOGLE_DRIVE_NOTIFICATION_UPDATE,
-} from "../../constants.mjs";
+} from "../../common/constants.mjs";
 
 export default {
   ...common,
   key: "google_drive-new-or-modified-folders",
-  name: "New or Modified Folders",
-  description: "Emit new event any time any folder in your linked Google Drive is added, modified, or deleted",
-  version: "0.1.1",
+  name: "New or Modified Folders (Instant)",
+  description: "Emit new event when a folder is created or modified in the selected Drive",
+  version: "0.1.9",
   type: "source",
   // Dedupe events based on the "x-goog-message-number" header for the target channel:
   // https://developers.google.com/drive/api/v3/push#making-watch-requests
@@ -31,12 +31,15 @@ export default {
       daysAgo.setDate(daysAgo.getDate() - 30);
       const timeString = daysAgo.toISOString();
 
-      const { data } = await this.googleDrive.drive().files.list({
+      const args = this.getListFilesOpts({
         q: `mimeType = "application/vnd.google-apps.folder" and modifiedTime > "${timeString}" and trashed = false`,
         fields: "files(id, mimeType)",
+        pageSize: 5,
       });
 
-      await this.processChanges(data.files);
+      const { files } = await this.googleDrive.listFilesInPage(null, args);
+
+      await this.processChanges(files);
     },
     ...common.hooks,
   },
@@ -68,7 +71,9 @@ export default {
     },
     async getChanges(headers) {
       if (!headers) {
-        return;
+        return {
+          change: { },
+        };
       }
       const resourceUri = headers["x-goog-resource-uri"];
       const metadata = await this.googleDrive.getFileMetadata(`${resourceUri}&fields=*`);

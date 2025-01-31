@@ -1,12 +1,10 @@
-import { axios } from "@pipedream/platform";
-import FeedParser from "feedparser";
-import { Item } from "feedparser";
-import hash from "object-hash";
-import { defineApp } from "@pipedream/types";
 import {
-  ConfigurationError, DEFAULT_POLLING_SOURCE_TIMER_INTERVAL,
+  axios, ConfigurationError, DEFAULT_POLLING_SOURCE_TIMER_INTERVAL,
 } from "@pipedream/platform";
+import { defineApp } from "@pipedream/types";
+import FeedParser, { Item } from "feedparser";
 import { ReadStream } from "fs";
+import hash from "object-hash";
 
 export default defineApp({
   type: "app",
@@ -49,7 +47,9 @@ export default defineApp({
       const itemId = id ?? guid ?? link ?? title;
       if (itemId) {
         // reduce itemId length for deduping
-        return itemId.length > 64 ? itemId.slice(-64) : itemId;
+        return itemId.length > 64
+          ? itemId.slice(-64)
+          : itemId;
       }
       return hash(item);
     },
@@ -87,8 +87,19 @@ export default defineApp({
         feedparser.on("end", resolve);
         feedparser.on("readable", function (this: FeedParser) {
           let item: any = this.read();
+
           while (item) {
-            console.log(`Item: ${JSON.stringify(item, null, 2)}`);
+            /*
+            Valid escaped entries in RSS are being stripped out, see issue:
+            https://github.com/danmactough/node-feedparser/issues/243
+            Author suggests using the values below, so I check for them,
+            if they exist, overwrite title.
+            */
+            if (item["atom:title"] && item["atom:title"]["#"]) {
+              item.title = item["atom:title"]["#"];
+            } else if (item["rss:title"] && item["rss:title"]["#"]) {
+              item.title = item["rss:title"]["#"];
+            }
             for (const k in item) {
               if (item[`rss:${k}`]) {
                 delete item[`rss:${k}`];

@@ -1,10 +1,17 @@
-import openai from "../../app/openai.app.mjs";
+import openai from "../../openai.app.mjs";
 import common from "./common.mjs";
 
 export default {
   ...common,
   props: {
     openai,
+    modelId: {
+      propDefinition: [
+        openai,
+        "chatCompletionModelId",
+      ],
+      description: "The ID of the model to use for chat completions",
+    },
     ...common.props,
   },
   methods: {
@@ -33,14 +40,14 @@ export default {
         content: this.userMessage(),
       },
     ];
-    const args = {
+    const data = {
       ...this._getCommonArgs(),
-      model: "gpt-3.5-turbo",
+      model: this.modelId,
       messages,
     };
     const response = await this.openai.createChatCompletion({
       $,
-      args,
+      data,
     });
 
     if (this.summary() && response) {

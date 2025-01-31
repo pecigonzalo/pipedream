@@ -1,11 +1,13 @@
-import common from "../common.mjs";
+import common from "../common/common.mjs";
+import { DEFAULT_LIMIT } from "../../common/constants.mjs";
+import sampleEmit from "./test-event.mjs";
 
 export default {
   ...common,
   key: "hubspot-new-deal-property-change",
   name: "New Deal Property Change",
-  description: "Emit new event when a specified property is provided or updated on a deal. [See the docs here](https://developers.hubspot.com/docs/api/crm/deals)",
-  version: "0.0.3",
+  description: "Emit new event when a specified property is provided or updated on a deal. [See the documentation](https://developers.hubspot.com/docs/api/crm/deals)",
+  version: "0.0.11",
   dedupe: "unique",
   type: "source",
   props: {
@@ -20,7 +22,6 @@ export default {
       },
     },
   },
-  hooks: {},
   methods: {
     ...common.methods,
     getTs(deal) {
@@ -31,57 +32,83 @@ export default {
       return Date.parse(history[0].timestamp);
     },
     generateMeta(deal) {
-      const {
-        id,
-        properties,
-      } = deal;
+      const { id } = deal;
       const ts = this.getTs(deal);
       return {
         id: `${id}${ts}`,
-        summary: properties.dealname,
+        summary: `Deal ${id} updated`,
         ts,
       };
     },
     isRelevant(deal, updatedAfter) {
       return !updatedAfter || this.getTs(deal) > updatedAfter;
     },
-    getParams() {
+    getParams(after) {
       return {
-        limit: 50,
-        sorts: [
-          {
-            propertyName: "hs_lastmodifieddate",
-            direction: "DESCENDING",
-          },
-        ],
-        propertiesWithHistory: this.property,
+        object: "deals",
+        data: {
+          limit: DEFAULT_LIMIT,
+          properties: [
+            this.property,
+          ],
+          sorts: [
+            {
+              propertyName: "hs_lastmodifieddate",
+              direction: "DESCENDING",
+            },
+          ],
+          filterGroups: [
+            {
+              filters: [
+                {
+                  propertyName: this.property,
+                  operator: "HAS_PROPERTY",
+                },
+                {
+                  propertyName: "hs_lastmodifieddate",
+                  operator: "GTE",
+                  value: after,
+                },
+              ],
+            },
+          ],
+        },
       };
     },
+    batchGetDeals(inputs) {
+      return this.hubspot.batchGetObjects({
+        objectType: "deals",
+        data: {
+          properties: [
+            this.property,
+          ],
+          propertiesWithHistory: [
+            this.property,
+          ],
+          inputs,
+        },
+      });
+    },
     async processResults(after, params) {
-      let maxTs = after;
-      const limiter = this._limiter();
+      const properties = await this.hubspot.getDealProperties();
+      const propertyNames = properties.map((property) => property.name);
+      if (!propertyNames.includes(this.property)) {
+        throw new Error(`Property "${this.property}" not supported for Deals. See Hubspot's default deal properties documentation - https://knowledge.hubspot.com/crm-deals/hubspots-default-deal-properties`);
+      }
 
-      do {
-        const {
-          results, paging,
-        } = await limiter.schedule(async () => await this.hubspot.listObjectsInPage("deals", null, params));
-        if (paging) {
-          params.after = paging.next.after;
-        } else {
-          delete params.after;
-        }
-        for (const result of results) {
-          if (this.isRelevant(result, after)) {
-            this.emitEvent(result);
-            const ts = this.getTs(result);
-            if (ts > maxTs) {
-              maxTs = ts;
-            }
-          }
-        }
-      } while (params.after);
+      const updatedDeals = await this.getPaginatedItems(this.hubspot.searchCRM, params);
 
-      this._setAfter(maxTs);
+      if (!updatedDeals.length) {
+        return;
+      }
+
+      const results = await this.processChunks({
+        batchRequestFn: this.batchGetDeals,
+        chunks: this.getChunks(updatedDeals),
+      });
+
+      this.processEvents(results, after);
     },
   },
+  sampleEmit,
 };

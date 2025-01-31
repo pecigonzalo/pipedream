@@ -32,12 +32,34 @@ const projectsQuery = `
   }
 `;
 
+const discussionsQuery = `
+  query ($repoOwner: String!, $repoName: String!) {
+    repository(owner: $repoOwner, name: $repoName) {
+      discussions(first: 100) {
+        nodes {
+          author {
+            login
+            url
+          }
+          bodyHTML
+          bodyText
+          createdAt
+          id
+          title
+          url
+        }
+      }
+    }
+  }
+`;
+
 const organizationStatusFieldsQuery = `
   query ($repoOwner: String!, $project: Int!) {
     organization(login: $repoOwner) {
       projectV2(number: $project) {
         field(name: "Status") {
           ... on ProjectV2SingleSelectField {
+            id
             options {
               name
               id
@@ -55,6 +77,7 @@ const statusFieldsQuery = `
       projectV2(number: $project) {
         field(name: "Status") {
           ... on ProjectV2SingleSelectField {
+            id
             options {
               name
               id
@@ -67,13 +90,18 @@ const statusFieldsQuery = `
 `;
 
 const projectItemsQuery = `
-  query ($repoOwner: String!, $repoName: String!, $project: Int!, $historicalEventsNumber: Int!) {
+  query ($repoOwner: String!, $repoName: String!, $project: Int!, $amount: Int!) {
     repository(name: $repoName, owner: $repoOwner) {
       projectV2(number: $project) {
-        items(last: $historicalEventsNumber) {
+        items(last: $amount) {
           nodes {
             id
             type
+            fieldValueByName(name: "Title") {
+              ... on ProjectV2ItemFieldTextValue {
+                text
+              }
+            }
           }
         }
       }
@@ -82,13 +110,18 @@ const projectItemsQuery = `
 `;
 
 const organizationProjectItemsQuery = `
-  query ($repoOwner: String!, $project: Int!, $historicalEventsNumber: Int!) {
+  query ($repoOwner: String!, $project: Int!, $amount: Int!) {
     organization(login: $repoOwner) {
       projectV2(number: $project) {
-        items(last: $historicalEventsNumber) {
+        items(last: $amount) {
           nodes {
             id
             type
+            fieldValueByName(name: "Title") {
+              ... on ProjectV2ItemFieldTextValue {
+                text
+              }
+            }
           }
         }
       }
@@ -121,7 +154,28 @@ const projectItemQuery = `
   }
 `;
 
+const orgProjectIdQuery = `
+  query ($repoOwner: String!, $project: Int!) {
+    organization(login: $repoOwner) {
+      projectV2(number: $project) {
+        id
+      }
+    }
+  }
+`;
+
+const repoProjectIdQuery = `
+  query ($repoOwner: String!, $repoName: String!, $project: Int!) {
+    repository(name: $repoName, owner: $repoOwner) {
+      projectV2(number: $project) {
+        id
+      }
+    }
+  }
+`;
+
 export default {
+  discussionsQuery,
   projectsQuery,
   organizationProjectsQuery,
   statusFieldsQuery,
@@ -129,4 +183,6 @@ export default {
   projectItemsQuery,
   organizationProjectItemsQuery,
   projectItemQuery,
+  orgProjectIdQuery,
+  repoProjectIdQuery,
 };

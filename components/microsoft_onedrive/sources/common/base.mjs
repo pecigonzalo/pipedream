@@ -1,5 +1,9 @@
 import onedrive from "../../microsoft_onedrive.app.mjs";
-import { toSingleLineString } from "./utils.mjs";
+import Bottleneck from "bottleneck";
+const limiter = new Bottleneck({
+  minTime: 100, // 10 requests per second
+  maxConcurrent: 1,
+});
 
 // Defaulting to 15 days. The maximum allowed expiration time is 30 days,
 // according to their API response message: "Subscription expiration can only
@@ -18,14 +22,12 @@ const props = {
   },
   timer: {
     type: "$.interface.timer",
-    label: "Webhook subscription renewal schedule",
-    description: toSingleLineString(`
-      The OneDrive API requires occasional renewal of webhook notification subscriptions.
-      **This runs in the background, so you should not need to modify this schedule**.
-    `),
+    //  The OneDrive API requires occasional renewal of webhook notification subscriptions.
+    //  **This runs in the background, so the user should not need to modify this schedule**.
     default: {
       intervalSeconds: WEBHOOK_SUBSCRIPTION_RENEWAL_SECONDS,
     },
+    hidden: true,
   },
 };
 
@@ -37,16 +39,21 @@ const hooks = {
     // We skip the first drive item, since it represents the root directory
     await itemsStream.next();
 
-    let eventsToProcess = 10;
-    for await (const driveItem of itemsStream) {
-      if (!this.isItemTypeRelevant(driveItem)) {
+    let done, value, eventsToProcess = 10;
+    while (true) {
+      ({
+        done, value,
+      } = await limiter.schedule(() => itemsStream.next()));
+      if (value && !this.isItemTypeRelevant(value)) {
         // If the type of the item being processed is not relevant to the
         // event source we want to skip it in order to avoid confusion in
         // terms of the actual payload of the sample events
         continue;
       }
 
-      await this.processEvent(driveItem);
+      if (done) break;
+
+      await this.processEvent(value);
       if (--eventsToProcess <= 0) {
         break;
       }
@@ -107,6 +114,12 @@ const methods = {
   _setDeltaLink(deltaLink) {
     this.db.set("deltaLink", deltaLink);
   },
+  _getSequentialErrorsCount() {
+    return this.db.get("errorsCount") || 0;
+  },
+  _setSequentialErrorsCount(count) {
+    this.db.set("errorsCount", count);
+  },
   _validateSubscription(validationToken) {
     // See the docs for more information on how webhooks are validated upon
     // creation: https://bit.ly/3fzc3Tr
@@ -127,10 +140,22 @@ const methods = {
       // `next()` since the last/returned value is also useful because it
       // contains the latest Delta Link (using a `for...of` loop will discard
       // such value).
-      const {
-        done,
-        value,
-      } = await itemsStream.next();
+      let done, value;
+      try {
+        ({
+          done, value,
+        } = await limiter.schedule(() => itemsStream.next()));
+      } catch (e) {
+        // Users have come upon an error with deltaLink, so we need to reset it by
+        // creating a new subscription.
+        console.error(e);
+        const errors = this._getSequentialErrorsCount();
+        if (errors > 3) {
+          console.log("need to renew webhook subscription");
+          return this._renewSubscription();
+        }
+        this._setSequentialErrorsCount(errors + 1);
+      }
 
       if (done) {
         // No more items to retrieve from OneDrive. We update the cached Delta
@@ -140,6 +165,7 @@ const methods = {
       }
 
       const shouldSkipItem = (
+        !value ||
         !this.isItemTypeRelevant(value) ||
         !this.isItemRelevant(value)
       );
@@ -153,7 +179,7 @@ const methods = {
         await this.processEvent(value);
       }
     }
-
+    this._setSequentialErrorsCount(0);
     await this.postProcessEvent();
   },
   /**
@@ -261,10 +287,10 @@ async function run(event) {
     return this._renewSubscription();
   }
 
-  // Every HTTP call made by a OneDrive webhook expects a '202 Accepted`
+  // Every HTTP call made by a OneDrive webhook expects a '200 Accepted`
   // response, and it should be done as soon as possible.
   this.http.respond({
-    status: 202,
+    status: 200,
   });
 
   // Using the last known Delta Link, we retrieve and process the items that

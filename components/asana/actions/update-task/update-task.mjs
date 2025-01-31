@@ -4,8 +4,8 @@ import common from "../common/common.mjs";
 export default {
   key: "asana-update-task",
   name: "Update Task",
-  description: "Updates a specific and existing task. [See the docs here](https://developers.asana.com/docs/update-a-task)",
-  version: "0.3.2",
+  description: "Updates a specific and existing task. [See the documentation](https://developers.asana.com/docs/update-a-task)",
+  version: "0.4.0",
   type: "action",
   props: {
     ...common.props,
@@ -34,6 +34,9 @@ export default {
       propDefinition: [
         asana,
         "users",
+        ({ workspace }) => ({
+          workspace,
+        }),
       ],
     },
     assignee_section: {
@@ -99,7 +102,8 @@ export default {
     let customFields;
     if (this.custom_fields) customFields = JSON.parse(this.custom_fields);
 
-    const response = await this.asana._makeRequest(`tasks/${this.task_gid}`, {
+    const { data: response } = await this.asana._makeRequest({
+      path: `tasks/${this.task_gid}`,
       method: "put",
       data: {
         data: {
@@ -116,10 +120,11 @@ export default {
           custom_fields: customFields,
         },
       },
-    }, $);
+      $,
+    });
 
     $.export("$summary", "Successfully updated task");
 
-    return response.data;
+    return response;
   },
 };

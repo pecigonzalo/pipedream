@@ -4,25 +4,27 @@ import gitlab from "../../gitlab.app.mjs";
 export default {
   key: "gitlab-create-epic",
   name: "Create Epic",
-  description: "Creates a new epic. [See docs](https://docs.gitlab.com/ee/api/epics.html#new-epic)",
-  version: "0.0.1",
+  description: "Creates a new epic. [See the documentation](https://docs.gitlab.com/ee/api/epics.html#new-epic)",
+  version: "0.0.4",
   type: "action",
   props: {
     gitlab,
-    groupPath: {
+    groupId: {
       propDefinition: [
         gitlab,
-        "groupPath",
+        "groupId",
       ],
     },
     parent_id: {
       propDefinition: [
         gitlab,
-        "epicId",
-        (c) => ({
-          groupPath: c.groupPath,
+        "epicIid",
+        ({ groupId }) => ({
+          groupId,
         }),
       ],
+      label: "Parent ID",
+      optional: true,
     },
     title: {
       propDefinition: [
@@ -35,8 +37,8 @@ export default {
       propDefinition: [
         gitlab,
         "groupLabels",
-        (c) => ({
-          groupPath: c.groupPath,
+        ({ groupId }) => ({
+          groupId,
         }),
       ],
     },
@@ -99,7 +101,7 @@ export default {
     return props;
   },
   async run({ $ }) {
-    const opts = lodash.pickBy(lodash.pick(this, [
+    const data = lodash.pickBy(lodash.pick(this, [
       "parent_id",
       "title",
       "labels",
@@ -112,9 +114,11 @@ export default {
       "start_date_fixed",
       "due_date_fixed",
     ]));
-    opts.labels = opts.labels?.join();
+    data.labels = data.labels?.join();
 
-    const response = await this.gitlab.createEpic(this.groupPath, this.title, opts);
+    const response = await this.gitlab.createEpic(this.groupId, {
+      data,
+    });
     $.export("$summary", `Created epic ${this.title}`);
     return response;
   },

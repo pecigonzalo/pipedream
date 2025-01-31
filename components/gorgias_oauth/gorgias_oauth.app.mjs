@@ -31,6 +31,55 @@ export default {
         };
       },
     },
+    userId: {
+      type: "integer",
+      label: "User ID",
+      description: "The ID of the user assigned to the ticket",
+      optional: true,
+      async options({ prevContext }) {
+        const {
+          data: users,
+          meta,
+        } = await this.listUsers({
+          params: {
+            cursor: prevContext.nextCursor,
+          },
+        });
+        return {
+          options: users.map((user) => ({
+            label: user.name,
+            value: user.id,
+          })),
+          context: {
+            nextCursor: meta.next_cursor,
+          },
+        };
+      },
+    },
+    ticketId: {
+      type: "integer",
+      label: "Ticket ID",
+      description: "The ID of a ticket to watch for new messages",
+      async options({ prevContext }) {
+        const {
+          data: tickets,
+          meta,
+        } = await this.listTickets({
+          params: {
+            cursor: prevContext.nextCursor,
+          },
+        });
+        return {
+          options: tickets.map((ticket) => ({
+            label: ticket.subject,
+            value: ticket.id,
+          })),
+          context: {
+            nextCursor: meta.next_cursor,
+          },
+        };
+      },
+    },
     address: {
       type: "string",
       label: "Address",
@@ -83,6 +132,73 @@ export default {
       label: "Limit",
       description: "Maximum number to return",
       optional: true,
+    },
+    assigneeTeamId: {
+      type: "integer",
+      label: "Assignee Team ID",
+      description: "The ID of the team assigned to the ticket",
+      async options({ prevContext }) {
+        const {
+          data: teams,
+          meta,
+        } = await this.listTeams({
+          params: {
+            cursor: prevContext.nextCursor,
+          },
+        });
+        return {
+          options: teams.map(({
+            id: value, name: label,
+          }) => ({
+            label,
+            value,
+          })),
+          context: {
+            nextCursor: meta.next_cursor,
+          },
+        };
+      },
+    },
+    assigneeUserId: {
+      type: "integer",
+      label: "Assignee User ID",
+      description: "The ID of the user assigned to the ticket",
+    },
+    subject: {
+      type: "string",
+      label: "Subject",
+      description: "The subject of the ticket",
+    },
+    tagId: {
+      type: "string",
+      label: "Tag ID",
+      description: "The tag id.",
+      optional: true,
+      async options({ prevContext: { cursor } }) {
+        if (cursor === null) {
+          return [];
+        }
+        const {
+          meta: { next_cursor: nextCursor },
+          data: tags,
+        } = await this.listTags({
+          params: {
+            cursor,
+          },
+        });
+        const options = tags.map(({
+          id: value, name: label,
+        }) => ({
+          label,
+          value,
+        }));
+        return {
+          options,
+          context: {
+            cursor: nextCursor,
+          },
+        };
+      },
     },
   },
   methods: {
@@ -247,6 +363,34 @@ export default {
       return this._makeRequest({
         $,
         path: `tickets/${id}`,
+      });
+    },
+    async updateTicket({
+      ticketId,
+      ...opts
+    }) {
+      return this._makeRequest({
+        method: "PUT",
+        path: `/tickets/${ticketId}`,
+        ...opts,
+      });
+    },
+    listUsers(opts = {}) {
+      return this._makeRequest({
+        path: "/users",
+        ...opts,
+      });
+    },
+    listTeams(opts = {}) {
+      return this._makeRequest({
+        path: "/teams",
+        ...opts,
+      });
+    },
+    listTags(opts = {}) {
+      return this._makeRequest({
+        path: "/tags",
+        ...opts,
       });
     },
   },

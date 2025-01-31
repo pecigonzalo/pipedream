@@ -2,7 +2,9 @@ import includes from "lodash/includes.js";
 import { v4 as uuid } from "uuid";
 
 import googleDrive from "../google_drive.app.mjs";
-import { WEBHOOK_SUBSCRIPTION_RENEWAL_SECONDS } from "../constants.mjs";
+import { WEBHOOK_SUBSCRIPTION_RENEWAL_SECONDS } from "../common/constants.mjs";
+import { getListFilesOpts } from "../common/utils.mjs";
+import commonDedupeChanges from "./common-dedupe-changes.mjs";
 
 export default {
   props: {
@@ -17,12 +19,6 @@ export default {
       description: "Defaults to My Drive. To select a [Shared Drive](https://support.google.com/a/users/answer/9310351) instead, select it from this list.",
       optional: false,
     },
-    watchForPropertiesChanges: {
-      propDefinition: [
-        googleDrive,
-        "watchForPropertiesChanges",
-      ],
-    },
     timer: {
       label: "Push notification renewal schedule",
       description:
@@ -31,6 +27,7 @@ export default {
       static: {
         intervalSeconds: WEBHOOK_SUBSCRIPTION_RENEWAL_SECONDS,
       },
+      hidden: true,
     },
   },
   hooks: {
@@ -72,6 +69,7 @@ export default {
     },
   },
   methods: {
+    ...commonDedupeChanges.methods,
     _getSubscription() {
       return this.db.get("subscription");
     },
@@ -96,20 +94,11 @@ export default {
     getDriveId(drive = this.drive) {
       return googleDrive.methods.getDriveId(drive);
     },
-    getFilesOpts(args = {}) {
-      const opts = {
+    getListFilesOpts(args = {}) {
+      return getListFilesOpts(this.drive, {
         q: "mimeType != 'application/vnd.google-apps.folder' and trashed = false",
         ...args,
-      };
-      return this.isMyDrive()
-        ? opts
-        : {
-          ...opts,
-          corpora: "drive",
-          driveId: this.getDriveId(),
-          includeItemsFromAllDrives: true,
-          supportsAllDrives: true,
-        };
+      });
     },
     /**
      * This method returns the types of updates/events from Google Drive that

@@ -1,13 +1,23 @@
-import common from "../common.mjs";
+import common from "../common/common.mjs";
+import sampleEmit from "./test-event.mjs";
 
 export default {
   ...common,
   key: "google_calendar-event-cancelled",
-  name: "Event Cancelled",
-  description: "Emits when an event is cancelled or deleted",
-  version: "0.1.2",
+  name: "New Cancelled Event",
+  description: "Emit new event when a Google Calendar event is cancelled or deleted",
+  version: "0.1.10",
   type: "source",
-  dedupe: "unique", // Dedupe events based on the Google Calendar event ID
+  dedupe: "unique",
+  props: {
+    ...common.props,
+    calendarId: {
+      propDefinition: [
+        common.props.googleCalendar,
+        "calendarId",
+      ],
+    },
+  },
   methods: {
     ...common.methods,
     getConfig({
@@ -26,4 +36,5 @@ export default {
       return event.status === "cancelled";
     },
   },
+  sampleEmit,
 };

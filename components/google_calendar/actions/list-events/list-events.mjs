@@ -1,10 +1,12 @@
 import googleCalendar from "../../google_calendar.app.mjs";
+import utils from "../../common/utils.mjs";
+import { ConfigurationError } from "@pipedream/platform";
 
 export default {
   key: "google_calendar-list-events",
   name: "List Events",
-  description: "Retrieve a list of event from the Google Calendar. [See the docs here](https://developers.google.com/calendar/api/v3/reference/events/list)",
-  version: "0.0.1",
+  description: "Retrieve a list of event from the Google Calendar. [See the documentation](https://developers.google.com/calendar/api/v3/reference/events/list)",
+  version: "0.0.7",
   type: "action",
   props: {
     googleCalendar,
@@ -38,12 +40,6 @@ export default {
         "orderBy",
       ],
       default: "",
-    },
-    pageToken: {
-      propDefinition: [
-        googleCalendar,
-        "pageToken",
-      ],
     },
     privateExtendedProperty: {
       propDefinition: [
@@ -81,12 +77,6 @@ export default {
         "singleEvents",
       ],
     },
-    syncToken: {
-      propDefinition: [
-        googleCalendar,
-        "syncToken",
-      ],
-    },
     timeMax: {
       propDefinition: [
         googleCalendar,
@@ -111,52 +101,52 @@ export default {
         "updatedMin",
       ],
     },
-  },
-  methods: {
-    filterEmptyValues(obj) {
-      if (!obj) {
-        return obj;
-      }
-      return Object.entries(obj)
-        .reduce((reduction,
-          [
-            key,
-            value,
-          ]) => {
-          if (value === undefined || value === null) {
-            return reduction;
-          }
-          return {
-            ...reduction,
-            [key]: value,
-          };
-        }, {});
+    eventTypes: {
+      propDefinition: [
+        googleCalendar,
+        "eventTypes",
+      ],
     },
   },
   async run({ $ }) {
-    const args = this.filterEmptyValues({
+    if (this.orderBy === "startTime" && !this.singleEvents) {
+      throw new ConfigurationError("Single Events must be `true` to order by `startTime`");
+    }
+
+    const args = utils.filterEmptyValues({
       calendarId: this.calendarId,
       iCalUID: this.iCalUID,
       maxAttendees: this.maxAttendees,
-      maxResults: this.maxResults,
       orderBy: this.orderBy || undefined,
-      pageToken: this.pageToken,
       privateExtendedProperty: this.privateExtendedProperty,
       q: this.q,
       sharedExtendedProperty: this.sharedExtendedProperty,
       showDeleted: this.showDeleted,
       showHiddenInvitations: this.showHiddenInvitations,
       singleEvents: this.singleEvents,
-      syncToken: this.syncToken,
       timeMax: this.timeMax,
       timeMin: this.timeMin,
       timeZone: this.timeZone,
       updatedMin: this.updatedMin,
+      eventTypes: this.eventTypes,
     });
-    const response = await this.googleCalendar.listEvents(args);
 
-    $.export("$summary", `Successfully retrieved ${response.items.length} event(s)`);
+    const events = [];
+    do {
+      const {
+        items, nextPageToken,
+      } = await this.googleCalendar.listEvents(args);
+      events.push(...items);
+      args.pageToken = nextPageToken;
+    } while (args.pageToken && (!this.maxResults || events.length < this.maxResults));
+    if (events.length > this.maxResults) {
+      events.length = this.maxResults;
+    }
 
-    return response;
+    $.export("$summary", `Successfully retrieved ${events.length} event${events.length === 1
+      ? ""
+      : "s"}`);
+
+    return events;
   },
 };

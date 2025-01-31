@@ -10,6 +10,6 @@ export default {
     component,
   }),
   key: "slack_bot-get-file",
-  description: "Return information about a file (Bot). [See docs here](https://api.slack.com/methods/files.info)",
-  version: "0.0.1",
+  description: "Return information about a file (Bot). [See the documentation](https://api.slack.com/methods/files.info)",
+  version: "0.0.4",
 };

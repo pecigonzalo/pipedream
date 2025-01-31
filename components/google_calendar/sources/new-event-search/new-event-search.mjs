@@ -1,15 +1,21 @@
-import common from "../common.mjs";
+import common from "../common/common.mjs";
 
 export default {
   ...common,
   key: "google_calendar-new-event-search",
-  name: "Event Search",
-  description: "Emit when an event is created that matches a search",
-  version: "0.1.2",
+  name: "New Event Matching a Search",
+  description: "Emit new event when a Google Calendar event is created that matches a search",
+  version: "0.1.10",
   type: "source",
-  dedupe: "unique", // Dedupe events based on the Google Calendar event ID
+  dedupe: "unique",
   props: {
     ...common.props,
+    calendarId: {
+      propDefinition: [
+        common.props.googleCalendar,
+        "calendarId",
+      ],
+    },
     q: {
       propDefinition: [
         common.props.googleCalendar,
@@ -31,7 +37,7 @@ export default {
     },
     isRelevant(event, { past }) {
       const created = new Date(event.created);
-      // created in last 5 mins and not cancelled
+      // created since last run and not cancelled
       return created > past && event.status !== "cancelled";
     },
   },

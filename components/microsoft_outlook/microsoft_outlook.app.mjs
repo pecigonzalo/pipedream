@@ -12,11 +12,28 @@ export default {
       label: "Recipients",
       description: "Array of email addresses",
       type: "string[]",
+      optional: true,
+      default: [],
+    },
+    ccRecipients: {
+      label: "CC Recipients",
+      description: "Array of email addresses",
+      type: "string[]",
+      optional: true,
+      default: [],
+    },
+    bccRecipients: {
+      label: "BCC Recipients",
+      description: "Array of email addresses",
+      type: "string[]",
+      optional: true,
+      default: [],
     },
     subject: {
       label: "Subject",
       description: "Subject of the email",
       type: "string",
+      optional: true,
     },
     contentType: {
       label: "Content Type",
@@ -41,18 +58,6 @@ export default {
       type: "string[]",
       optional: true,
     },
-    timeZone: {
-      label: "Time Zone",
-      description: "Time zone of the event in supported time zones, [See the docs](https://docs.microsoft.com/en-us/graph/api/outlookuser-supportedtimezones)",
-      type: "string",
-      async options() {
-        const timeZonesResponse = await this.getSupportedTimeZones();
-        return timeZonesResponse.value.map((tz) => ({
-          label: tz.displayName,
-          value: tz.alias,
-        }));
-      },
-    },
     contact: {
       label: "Contact",
       description: "The contact to be updated",
@@ -64,16 +69,6 @@ export default {
           value: co.id,
         }));
       },
-    },
-    start: {
-      label: "Start",
-      description: "Start date-time (yyyy-MM-ddThh:mm:ss) e.g. '2022-04-15T11:20:00'",
-      type: "string",
-    },
-    end: {
-      label: "End",
-      description: "End date-time (yyyy-MM-ddThh:mm:ss) e.g. '2022-04-15T13:30:00'",
-      type: "string",
     },
     givenName: {
       label: "Given name",
@@ -99,28 +94,46 @@ export default {
       type: "string[]",
       optional: true,
     },
-    attendees: {
-      label: "Attendees",
-      description: "Array of email addresses",
-      type: "string[]",
-    },
-    location: {
-      label: "Location",
-      description: "Location of the event",
-      type: "string",
-      optional: true,
-    },
-    isOnlineMeeting: {
-      label: "Is Online Meeting",
-      description: "If it is online meeting or not",
-      type: "boolean",
-      optional: true,
-    },
     expand: {
       label: "Expand",
       description: "Additional properties",
       type: "object",
       optional: true,
+    },
+    labelId: {
+      type: "string",
+      label: "Label ID",
+      description: "The identifier of the label/category to add",
+      async options() {
+        const { value: labels } = await this.listLabels();
+        return labels?.map(({
+          id: value, displayName: label,
+        }) => ({
+          value,
+          label,
+        })) || [];
+      },
+    },
+    messageId: {
+      type: "string",
+      label: "Message ID",
+      description: "The identifier of the message to update",
+      async options({ page }) {
+        const limit = 50;
+        const { value } = await this.listMessages({
+          params: {
+            $top: limit,
+            $skip: limit * page,
+            $orderby: "createdDateTime desc",
+          },
+        });
+        return value?.map(({
+          id: value, subject: label,
+        }) => ({
+          value,
+          label,
+        })) || [];
+      },
     },
   },
   methods: {
@@ -177,6 +190,8 @@ export default {
     },
     prepareMessageBody(self) {
       const toRecipients = [];
+      const ccRecipients = [];
+      const bccRecipients = [];
       for (const address of self.recipients) {
         toRecipients.push({
           emailAddress: {
@@ -184,6 +199,25 @@ export default {
           },
         });
       }
+      for (const address of self.ccRecipients) {
+        if (address.trim() !== "") {
+          ccRecipients.push({
+            emailAddress: {
+              address,
+            },
+          });
+        }
+      }
+      for (const address of self.bccRecipients) {
+        if (address.trim() !== "") {
+          bccRecipients.push({
+            emailAddress: {
+              address,
+            },
+          });
+        }
+      }
+
       const attachments = [];
       for (let i = 0; self.files && i < self.files.length; i++) {
         attachments.push({
@@ -206,27 +240,11 @@ export default {
         toRecipients,
         attachments,
       };
+
+      if (ccRecipients.length > 0) message.ccRecipients = ccRecipients;
+      if (bccRecipients.length > 0) message.bccRecipients = bccRecipients;
+
       return message;
-    },
-    async getSupportedTimeZones() {
-      return await this._makeRequest({
-        method: "GET",
-        path: "/me/outlook/supportedTimeZones",
-      });
-    },
-    async createCalendarEvent({ ...args } = {}) {
-      return await this._makeRequest({
-        method: "POST",
-        path: "/me/events",
-        ...args,
-      });
-    },
-    async listCalendarEvents({ ...args } = {}) {
-      return await this._makeRequest({
-        method: "GET",
-        path: "/me/events",
-        ...args,
-      });
     },
     async sendEmail({ ...args } = {}) {
       return await this._makeRequest({
@@ -293,16 +311,6 @@ export default {
         ...args,
       });
     },
-    async getCalendarEvent({
-      eventId,
-      ...args
-    } = {}) {
-      return await this._makeRequest({
-        method: "GET",
-        path: `/me/events/${eventId}`,
-        ...args,
-      });
-    },
     async getContact({
       contactId,
       ...args
@@ -310,6 +318,21 @@ export default {
       return await this._makeRequest({
         method: "GET",
         path: `/me/contacts/${contactId}`,
+        ...args,
+      });
+    },
+    listLabels(args = {}) {
+      return this._makeRequest({
+        path: "/me/outlook/masterCategories",
+        ...args,
+      });
+    },
+    updateMessage({
+      messageId, ...args
+    }) {
+      return this._makeRequest({
+        method: "PATCH",
+        path: `/me/messages/${messageId}`,
         ...args,
       });
     },

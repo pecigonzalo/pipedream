@@ -1,61 +1,71 @@
-import webflow from "../../webflow.app.mjs";
+import app from "../../webflow.app.mjs";
 
 export default {
   key: "webflow-create-collection-item",
   name: "Create Collection Item",
-  description: "Create new collection item. [See the docs here](https://developers.webflow.com/#create-new-collection-item)",
-  version: "0.1.5",
+  description: "Create new collection item. [See the documentation](https://developers.webflow.com/data/reference/cms/collection-items/staged-items/create-item)",
+  version: "2.0.0",
   type: "action",
   props: {
-    webflow,
+    app,
     siteId: {
       propDefinition: [
-        webflow,
+        app,
         "sites",
       ],
     },
     collectionId: {
       propDefinition: [
-        webflow,
+        app,
         "collections",
         (c) => ({
           siteId: c.siteId,
         }),
       ],
-    },
-    live: {
-      label: "Live",
-      description: "Indicate if the item should be published to the live site",
-      type: "boolean",
-      default: false,
-    },
-    name: {
-      label: "Name",
-      description: "Name given to the Item.",
-      type: "string",
-    },
-    slug: {
-      label: "Slug",
-      description: "URL structure of the Item in your site.",
-      type: "string",
+      reloadProps: true,
     },
   },
+  async additionalProps() {
+    const props = {};
+    if (!this.collectionId) {
+      return props;
+    }
+    const { fields } = await this.app.getCollection(this.collectionId);
+    for (const field of fields) {
+      if (field.isEditable && field.slug !== "isArchived" && field.slug !== "isDraft") {
+        props[field.slug] = {
+          type: "string",
+          label: field.name,
+          description: field.slug === "name"
+            ? "Name given to the Item."
+            : field.slug === "slug"
+              ? "URL structure of the Item in your site."
+              : "See the documentation for additional information about [Field Types & Item Values](https://developers.webflow.com/reference/field-types-item-values).",
+          optional: !field.isRequired,
+        };
+      }
+    }
+    return props;
+  },
   async run({ $ }) {
-    const webflow = this.webflow._createApiClient();
+    const {
+      app,
+      // eslint-disable-next-line no-unused-vars
+      siteId,
+      collectionId,
+      ...fieldData
+    } = this;
 
-    const response = await webflow.createItem({
-      collectionId: this.collectionId,
-      fields: {
-        name: this.name,
-        slug: this.slug,
-        _archived: false,
-        _draft: false,
+    const response = await app.createCollectionItem(
+      collectionId,
+      {
+        fieldData,
+        isArchived: false,
+        isDraft: false,
       },
-    }, {
-      live: this.live,
-    });
+    );
 
-    $.export("$summary", `Successfully created collection item ${this.name}`);
+    $.export("$summary", `Successfully created collection item ${this.name ?? ""}`);
 
     return response;
   },

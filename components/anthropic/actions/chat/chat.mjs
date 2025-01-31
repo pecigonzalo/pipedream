@@ -1,20 +1,20 @@
-import anthropic from "../../app/anthropic.app.mjs";
+import anthropic from "../../anthropic.app.mjs";
 import constants from "../common/constants.mjs";
 
 export default {
   name: "Chat",
-  version: "0.0.2",
+  version: "0.0.9",
   key: "anthropic-chat",
-  description: "The Chat API. [See docs here](https://console.anthropic.com/docs/api/reference#-v1-complete)",
+  description: "The Chat API. [See the documentation](https://docs.anthropic.com/claude/reference/messages_post)",
   type: "action",
   props: {
     anthropic,
     model: {
       label: "Model",
-      description: "Select the model to use for your query. Defaults to the `claude-v1` model, which is recommended by Anthropic, and always uses their latest stable version.",
+      description: "Select the model to use for your query. Defaults to the `claude-3-opus-20240229` model, which Anthropic describes as the \"Most powerful model for highly complex tasks\".",
       type: "string",
-      options: constants.COMPLETION_MODELS,
-      default: constants.COMPLETION_MODELS[0],
+      options: constants.MESSAGE_MODELS,
+      default: constants.MESSAGE_MODELS[0],
     },
     userMessage: {
       label: "User Message",
@@ -35,69 +35,73 @@ export default {
     },
     topK: {
       label: "Top K",
-      description: "Only sample from the top K options for each subsequent token. Used to remove `long tail` low probability responses. Default: `-1`",
+      description: "Only sample from the top K options for each subsequent token. Used to remove `long tail` low probability responses.",
       type: "integer",
       optional: true,
-      default: -1,
     },
     topP: {
       label: "Top P",
-      description: "Does nucleus sampling, in which we compute the cumulative distribution over all the options for each subsequent token in decreasing probability order and cut it off once it reaches a particular probability specified. Default: `-1`",
+      description: "Does nucleus sampling, in which we compute the cumulative distribution over all the options for each subsequent token in decreasing probability order and cut it off once it reaches a particular probability specified.",
       type: "string",
       optional: true,
-      default: "-1",
     },
     maxTokensToSample: {
       label: "Maximum Tokens To Sample",
-      description: "A maximum number of tokens to generate before stopping. Default: `300`",
+      description: "A maximum number of tokens to generate before stopping.",
       type: "integer",
-      optional: true,
-      default: 300,
     },
   },
   async run({ $ }) {
-    let prompt = "";
+    const messages = [];
 
-    this.messages = typeof this.messages === "string"
+    const priorMessages = typeof this.messages === "string"
       ? JSON.parse(this.messages)
       : this.messages;
 
-    if (this.messages && this.messages.length) {
+    if (priorMessages?.length) {
       let isUserMessage = true;
 
-      for (const message of this.messages) {
-        prompt += `\n\n${isUserMessage
-          ? "Human"
-          : "Assistant"}: ${message}`;
+      for (const message of priorMessages) {
+        messages.push({
+          role: isUserMessage
+            ? "user"
+            : "assistant",
+          content: message,
+        });
 
         isUserMessage = !isUserMessage;
       }
-    } else {
-      this.messages = [];
     }
 
-    prompt = `\n\nHuman: ${this.userMessage}\n\nAssistant:`;
-    this.messages.push(this.userMessage);
+    messages.push({
+      role: "user",
+      content: this.userMessage,
+    });
 
-    const response = await this.anthropic.createChatCompletion({
+    const response = await this.anthropic.createMessage({
       $,
       data: {
-        prompt,
+        messages,
         model: this.model,
-        max_tokens_to_sample: this.maxTokensToSample,
-        temperature: this.temperature,
-        top_p: this.topP,
+        max_tokens: this.maxTokensToSample,
+        temperature: this.temperature
+          ? parseFloat(this.temperature)
+          : undefined,
+        top_p: this.topP
+          ? parseFloat(this.topP)
+          : undefined,
         top_k: this.topK,
       },
     });
 
     if (response) {
-      $.export("$summary", `Successfully sent chat with ID ${response.log_id}`);
+      $.export("$summary", `Successfully sent message with ID ${response.id}`);
     }
 
+    const originalMessages = messages.map(({ content }) => content);
     return {
-      original_messages: this.messages,
-      original_messages_with_assistant_response: this.messages.concat(response.completion),
+      original_messages: originalMessages,
+      original_messages_with_assistant_response: originalMessages.concat(response.content[0].text),
       ...response,
     };
   },

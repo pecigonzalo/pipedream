@@ -38,7 +38,8 @@ export default {
      * @returns prop description
      */
     _buildPropDescription(type, example) {
-      const description = `The type of this property is \`${type}\`. [See ${type} type docs here](https://developers.notion.com/reference/property-object#${type}-configuration).`;
+      const typeName = type.replace(/_/g, "-");
+      const description = `The type of this property is \`${type}\`. [See ${type} type docs here](https://developers.notion.com/reference/property-object#${typeName}).`;
       const descriptionExample = example
         ? `e.g. ${example}.`
         : "";
@@ -78,11 +79,12 @@ export default {
      */
     _filterProps(properties = {}) {
       return Object.keys(properties)
-        .filter((property) => this[property] != null)
+        .filter((property) => this[property] != null
+          || (this.properties && this.properties[property]))
         .map((property) => ({
           type: properties[property]?.type ?? property,
           label: property,
-          value: this[property],
+          value: this[property] || this.properties[property],
         }));
     },
     /**

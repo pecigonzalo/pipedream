@@ -6,7 +6,7 @@ export default {
   key: "shopify_partner-new-app-uninstalls",
   name: "New App Uninstalls",
   type: "source",
-  version: "0.0.14",
+  version: "0.1.3",
   description: "Emit new events when new shops uninstall your app.",
   ...common,
   props: {
@@ -32,17 +32,18 @@ export default {
   },
   async run() {
     const {
-      appId,
-      occurredAtMin,
-      occurredAtMax,
-      db,
+      appId, occurredAtMin, occurredAtMax, db,
     } = this;
 
     const variables = {
       appId: `gid://partners/App/${appId}`,
-      ...(occurredAtMin || {}),
-      ...(occurredAtMax || {}),
     };
+    if (occurredAtMin) {
+      variables.occurredAtMin = occurredAtMin.trim();
+    }
+    if (occurredAtMax) {
+      variables.occurredAtMax = occurredAtMax.trim();
+    }
 
     await this.shopify.query({
       db,

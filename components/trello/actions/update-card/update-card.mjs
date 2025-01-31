@@ -1,25 +1,24 @@
-import common from "../common.js";
-import pickBy from "lodash/pickBy.js";
-import pick from "lodash/pick.js";
+import app from "../../trello.app.mjs";
+import pickBy from "lodash-es/pickBy.js";
+import pick from "lodash-es/pick.js";
 
 export default {
-  ...common,
   key: "trello-update-card",
   name: "Update Card",
-  description: "Updates a card. [See the docs here](https://developer.atlassian.com/cloud/trello/rest/api-group-cards/#api-cards-id-put)",
-  version: "0.1.2",
+  description: "Updates a card. [See the documentation](https://developer.atlassian.com/cloud/trello/rest/api-group-cards/#api-cards-id-put).",
+  version: "0.2.1",
   type: "action",
   props: {
-    ...common.props,
+    app,
     idBoard: {
       propDefinition: [
-        common.props.trello,
+        app,
         "board",
       ],
     },
-    idCard: {
+    cardId: {
       propDefinition: [
-        common.props.trello,
+        app,
         "cards",
         (c) => ({
           board: c.idBoard,
@@ -32,14 +31,14 @@ export default {
     },
     name: {
       propDefinition: [
-        common.props.trello,
+        app,
         "name",
       ],
       description: "The new name for the card.",
     },
     desc: {
       propDefinition: [
-        common.props.trello,
+        app,
         "desc",
       ],
       description: "The new description for the card.",
@@ -49,10 +48,11 @@ export default {
       label: "Archived",
       description: "Whether to archive the card",
       default: false,
+      optional: true,
     },
     idMembers: {
       propDefinition: [
-        common.props.trello,
+        app,
         "member",
         (c) => ({
           board: c.idBoard,
@@ -64,15 +64,20 @@ export default {
       optional: true,
     },
     idAttachmentCover: {
-      type: "string",
-      label: "Cover",
-      description:
-        "Assign an attachment to be the cover image for the card",
-      optional: true,
+      propDefinition: [
+        app,
+        "cardAttachmentId",
+        ({ cardId }) => ({
+          cardId,
+          params: {
+            filter: "cover",
+          },
+        }),
+      ],
     },
     idList: {
       propDefinition: [
-        common.props.trello,
+        app,
         "lists",
         (c) => ({
           board: c.idBoard,
@@ -84,7 +89,7 @@ export default {
     },
     idLabels: {
       propDefinition: [
-        common.props.trello,
+        app,
         "label",
         (c) => ({
           board: c.idBoard,
@@ -97,19 +102,20 @@ export default {
     },
     pos: {
       propDefinition: [
-        common.props.trello,
+        app,
         "pos",
       ],
+      description: "The position of the new card. `top`, `bottom`, or a positive float",
     },
     due: {
       propDefinition: [
-        common.props.trello,
+        app,
         "due",
       ],
     },
     dueComplete: {
       propDefinition: [
-        common.props.trello,
+        app,
         "dueComplete",
       ],
       description: "Whether the due date should be marked complete.",
@@ -118,47 +124,123 @@ export default {
     subscribed: {
       type: "boolean",
       label: "Subscribed",
-      description: "Whether the member is should be subscribed to the card.",
+      description: "Whether the member should be subscribed to the card.",
       default: false,
+      optional: true,
     },
     address: {
       propDefinition: [
-        common.props.trello,
+        app,
         "address",
       ],
     },
     locationName: {
       propDefinition: [
-        common.props.trello,
+        app,
         "locationName",
       ],
     },
     coordinates: {
       propDefinition: [
-        common.props.trello,
+        app,
         "coordinates",
       ],
     },
+    customFieldIds: {
+      propDefinition: [
+        app,
+        "customFieldIds",
+        (c) => ({
+          boardId: c.idBoard,
+        }),
+      ],
+      reloadProps: true,
+    },
+  },
+  async additionalProps() {
+    const props = {};
+    if (!this.customFieldIds?.length) {
+      return props;
+    }
+    for (const customFieldId of this.customFieldIds) {
+      const customField = await this.app.getCustomField({
+        customFieldId,
+      });
+      props[customFieldId] = {
+        type: "string",
+        label: `Value for Custom Field - ${customField.name}`,
+      };
+      if (customField.type === "list") {
+        props[customFieldId].options = customField.options?.map((option) => ({
+          value: option.id,
+          label: option.value.text,
+        })) || [];
+      }
+    }
+    return props;
+  },
+  methods: {
+    async getCustomFieldItems($) {
+      const customFieldItems = [];
+      for (const customFieldId of this.customFieldIds) {
+        const customField = await this.app.getCustomField({
+          $,
+          customFieldId,
+        });
+        const customFieldItem = {
+          idCustomField: customFieldId,
+        };
+        if (customField.type === "list") {
+          customFieldItem.idValue = this[customFieldId];
+        } else if (customField.type === "checkbox") {
+          customFieldItem.value = {
+            checked: this[customFieldId],
+          };
+        } else {
+          customFieldItem.value = {
+            [customField.type]: this[customFieldId],
+          };
+        }
+        customFieldItems.push(customFieldItem);
+      }
+      return customFieldItems;
+    },
   },
   async run({ $ }) {
-    const opts = pickBy(pick(this, [
-      "name",
-      "desc",
-      "closed",
-      "idMembers",
-      "idAttachmentCover",
-      "idList",
-      "idLabels",
-      "idBoard",
-      "pos",
-      "due",
-      "dueComplete",
-      "subscribed",
-      "address",
-      "locationName",
-      "coordinates",
-    ]));
-    const res = await this.trello.updateCard(this.idCard, opts, $);
+    const res = await this.app.updateCard({
+      $,
+      cardId: this.cardId,
+      data: pickBy(pick(this, [
+        "name",
+        "desc",
+        "closed",
+        "idMembers",
+        "idAttachmentCover",
+        "idList",
+        "idLabels",
+        "idBoard",
+        "pos",
+        "due",
+        "dueComplete",
+        "subscribed",
+        "address",
+        "locationName",
+        "coordinates",
+      ])),
+    });
+
+    if (this.customFieldIds) {
+      const customFieldItems = await this.getCustomFieldItems($);
+      const updatedCustomFields = await this.app.updateCustomFields({
+        $,
+        cardId: this.cardId,
+        data: {
+          customFieldItems,
+        },
+      });
+      res.updatedCustomFields = updatedCustomFields;
+    }
+
     $.export("$summary", `Successfully updated card ${res.name}`);
     return res;
   },

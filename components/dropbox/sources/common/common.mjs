@@ -7,8 +7,12 @@ export default {
     path: {
       propDefinition: [
         dropbox,
-        "pathFolder",
+        "path",
+        () => ({
+          filter: ({ metadata: { metadata: { [".tag"]: type } } }) => type === "folder",
+        }),
       ],
+      description: "Type the folder name to search for it in the user's Dropbox.",
     },
     recursive: {
       propDefinition: [
@@ -31,7 +35,7 @@ export default {
     },
     async getHistoricalEvents(fileTypes = []) {
       const files = await this.dropbox.listFilesFolders({
-        path: this.path?.value || this.path,
+        path: this.dropbox.getPath(this.path),
         recursive: this.recursive,
         include_media_info: this.includeMediaInfo,
       });
@@ -40,7 +44,7 @@ export default {
         if (!fileTypes.includes(file[".tag"])) {
           continue;
         }
-        if (this.includeLink) {
+        if (this.includeLink && file[".tag"] === "file") {
           file.link = await this.getTemporaryLink(file);
         }
         this.$emit(file, this.getMeta(file.id, file.path_display || file.id));

@@ -1,4 +1,4 @@
-import MailerLite from "mailerlite-api-v2-node";
+import { axios } from "@pipedream/platform";
 import constants from "./common/constants.mjs";
 
 export default {
@@ -54,11 +54,14 @@ export default {
           limit,
           offset,
         };
-        const subscribers = await this.listSubscribers(group, params);
+        const subscribers = await this.listSubscribers({
+          group,
+          params,
+        });
         return {
           options: subscribers.map((subscriber) => ({
-            label: subscriber.name,
-            value: subscriber.email,
+            label: subscriber.email,
+            value: subscriber.id,
           })),
           context: {
             offset: offset + limit,
@@ -77,7 +80,9 @@ export default {
           limit,
           offset,
         };
-        const groups = await this.listGroups(params);
+        const groups = await this.listGroups({
+          params,
+        });
         return {
           options: groups.map((group) => ({
             label: group.name,
@@ -106,47 +111,100 @@ export default {
     },
   },
   methods: {
-    async _getClient() {
-      const client = MailerLite.default;
-      return client(this.$auth.api_key);
+    _baseUrl() {
+      return "https://connect.mailerlite.com/api";
     },
-    async listGroups(params) {
-      const client = await this._getClient();
-      return client.getGroups(params);
+    _makeRequest({
+      $ = this,
+      path,
+      ...args
+    }) {
+      return axios($, {
+        url: `${this._baseUrl()}${path}`,
+        headers: {
+          Authorization: `Bearer ${this.$auth.api_key}`,
+        },
+        ...args,
+      });
     },
-    async listSubscribers(group, params = {}) {
-      const client = await this._getClient();
-      if (group) {
-        const { type = "active" } = params;
-        delete params.type;
-        return client.getGroupSubscribersByType(group, type, params);
-      }
-      // getSubscribers returns active subscribers only
-      return client.getSubscribers(params);
+    async listGroups(opts = {}) {
+      const { data } = await this._makeRequest({
+        path: "/groups",
+        ...opts,
+      });
+      return data;
     },
-    async listFields() {
-      const client = await this._getClient();
-      return client.getFields();
+    async listSubscribers({
+      group, params = {}, ...opts
+    }) {
+      const { type = "active" } = params;
+      delete params.type;
+      params["filter[status]"] = type;
+      const { data } = await this._makeRequest({
+        path: group
+          ? `/groups/${group}/subscribers`
+          : "/subscribers",
+        params,
+        ...opts,
+      });
+      return data;
     },
-    async listCampaigns(status = "sent") {
-      const client = await this._getClient();
-      return client.getCampaigns(status);
+    async listFields(opts = {}) {
+      const { data } = await this._makeRequest({
+        path: "/fields",
+        ...opts,
+      });
+      return data;
     },
-    async createSubscriber(data) {
-      const client = await this._getClient();
-      return client.addSubscriber(data);
+    createSubscriber(opts = {}) {
+      return this._makeRequest({
+        method: "POST",
+        path: "/subscribers",
+        ...opts,
+      });
     },
-    async updateSubscriber(data, subscriber) {
-      const client = await this._getClient();
-      return client.updateSubscriber(subscriber, data);
+    createHook(opts = {}) {
+      return this._makeRequest({
+        method: "POST",
+        path: "/webhooks",
+        ...opts,
+      });
     },
-    async addSubscriberToGroup(data, group) {
-      const client = await this._getClient();
-      return client.addSubscriberToGroup(group, data);
+    updateSubscriber({
+      subscriber, ...opts
+    }) {
+      return this._makeRequest({
+        method: "PUT",
+        path: `/subscribers/${subscriber}`,
+        ...opts,
+      });
     },
-    async removeSubscriberFromGroup(group, subscriber) {
-      const client = await this._getClient();
-      return client.removeGroupSubscriber(group, subscriber);
+    addSubscriberToGroup({
+      subscriber, group, ...opts
+    }) {
+      return this._makeRequest({
+        method: "POST",
+        path: `/subscribers/${subscriber}/groups/${group}`,
+        ...opts,
+      });
+    },
+    removeHook({
+      hookId, ...opts
+    }) {
+      return this._makeRequest({
+        method: "DELETE",
+        path: `/webhooks/${hookId}`,
+        ...opts,
+      });
+    },
+    removeSubscriberFromGroup({
+      subscriber, group, ...opts
+    }) {
+      return this._makeRequest({
+        method: "DELETE",
+        path: `/subscribers/${subscriber}/groups/${group}`,
+        ...opts,
+      });
     },
   },
 };

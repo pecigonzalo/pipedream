@@ -2,7 +2,7 @@ import OAuth from "oauth-1.0a";
 import crypto from "crypto";
 import { defineApp } from "@pipedream/types";
 import {
-  axios, transformConfigForOauth,
+  axios, transformConfigForOauth, ConfigurationError,
 } from "@pipedream/platform";
 import {
   AddUserToListParams,
@@ -40,7 +40,7 @@ import {
   TwitterEntity,
   User,
 } from "../common/types/responseSchemas";
-import { ERROR_MESSAGE } from "../common/errorMessage";
+import { ERROR_BY_TYPE } from "../common/errorMessage";
 
 export default defineApp({
   type: "app",
@@ -59,23 +59,17 @@ export default defineApp({
       description:
         "Select a **List** owned by the authenticated user, or use a custom *List ID*.",
       async options(): Promise<{ label: string; value: string; }[]> {
-        try {
-          const userId = await this.getAuthenticatedUserId();
-          const lists = await this.getUserOwnedLists({
-            userId,
-          });
+        const userId = await this.getAuthenticatedUserId();
+        const lists = await this.getUserOwnedLists({
+          userId,
+        });
 
-          return (
-            lists.data?.map(({
-              id, name,
-            }: List) => ({
-              label: name,
-              value: id,
-            })) ?? []
-          );
-        } catch (error) {
-          throw new Error(ERROR_MESSAGE);
-        }
+        return lists.data?.map(({
+          id, name,
+        }: List) => ({
+          label: name,
+          value: id,
+        })) ?? [];
       },
     },
     userNameOrId: {
@@ -110,6 +104,13 @@ export default defineApp({
     },
   },
   methods: {
+    throwError(data) {
+      const errorMessage = ERROR_BY_TYPE[data?.type];
+      if (!errorMessage) {
+        return;
+      }
+      throw new ConfigurationError(errorMessage);
+    },
     _getAuthHeader(config: HttpRequestParams) {
       const {
         developer_consumer_key: devKey,
@@ -147,32 +148,52 @@ export default defineApp({
       return "https://api.twitter.com/2";
     },
     async _httpRequest({
-      $ = this,
-      ...args
+      $ = this, headers, specialAuth = false, throwError = true, fallbackError, ...args
     }: HttpRequestParams): Promise<ResponseObject<TwitterEntity>> {
+      const maxRetries = 3;
+      let response: ResponseObject<TwitterEntity>;
+      let counter = 1;
+
       const config = {
         baseURL: this._getBaseUrl(),
         ...args,
       };
 
-      const request = async () => {
-        const headers = this._getAuthHeader(config);
-        return axios($, {
+      const authConfig = specialAuth
+        ? {
           ...config,
-          headers,
-        });
-      }
+          params: {},
+          data: {},
+        }
+        : config;
 
-      let response: ResponseObject<TwitterEntity>,
-        counter = 1;
+      const axiosConfig = {
+        debug: true,
+        ...config,
+        headers: {
+          ...headers,
+          ...this._getAuthHeader(authConfig),
+        },
+      };
+
       do {
         try {
-          response = await request();
+          response = await axios($, axiosConfig);
+
         } catch (err) {
           console.log(`Request error on attempt #${counter}: `, err);
+          if (counter === maxRetries) {
+            if (throwError && err.response?.data) {
+              this.throwError(err.response.data);
+            }
+            if (fallbackError) {
+              throw new ConfigurationError(fallbackError);
+            }
+            throw err;
+          }
         }
-      } while (!response && ++counter < 3);
-      if (!response) response = await request();
+      } while (!response && ++counter <= maxRetries);
+
       return response;
     },
     async _paginatedRequest({
@@ -256,6 +277,7 @@ export default defineApp({
     },
     async createTweet(args: CreateTweetParams): Promise<object> {
       return this._httpRequest({
+        throwError: false,
         method: "POST",
         url: "/tweets",
         ...args,
@@ -450,10 +472,15 @@ export default defineApp({
         ...args,
       });
     },
-    async uploadMedia({ ...args }: UploadMediaParams): Promise<object> {
+    async uploadMedia(args: UploadMediaParams): Promise<object> {
       return this._httpRequest({
-        url: "https://upload.twitter.com/1.1/media/upload.json",
+        baseURL: "https://upload.twitter.com/1.1",
+        url: "/media/upload.json",
         method: "POST",
+        headers: {
+          "Content-Type": `multipart/form-data; boundary=${args.data.getBoundary()}`,
+        },
+        specialAuth: true,
         ...args,
       });
     },

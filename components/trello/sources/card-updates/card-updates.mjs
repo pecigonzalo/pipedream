@@ -1,23 +1,24 @@
 import common from "../common/common-webhook.mjs";
+import sampleEmit from "./test-event.mjs";
 
 export default {
   ...common,
   key: "trello-card-updates",
-  name: "Card Updates (Instant)",
+  name: "Card Updated (Instant)", /* eslint-disable-line pipedream/source-name */
   description: "Emit new event for each update to a Trello card.",
-  version: "0.0.10",
+  version: "0.1.1",
   type: "source",
   props: {
     ...common.props,
     board: {
       propDefinition: [
-        common.props.trello,
+        common.props.app,
         "board",
       ],
     },
     cards: {
       propDefinition: [
-        common.props.trello,
+        common.props.app,
         "cards",
         (c) => ({
           board: c.board,
@@ -29,32 +30,45 @@ export default {
     ...common.methods,
     async getSampleEvents() {
       let cards = [];
-      if (this.cards && this.cards.length > 0) {
+      const params = {
+        customFieldItems: true,
+      };
+      if (this.cards?.length > 0) {
         for (const cardId of this.cards) {
-          const card = await this.trello.getCard(cardId);
+          const card = await this.app.getCard({
+            cardId,
+            params,
+          });
           cards.push(card);
         }
       } else {
-        cards = await this.trello.getCards(this.board);
+        cards = await this.app.getCards({
+          boardId: this.board,
+          params,
+        });
       }
-      return {
-        sampleEvents: cards,
-        sortField: "dateLastActivity",
-      };
+      return cards;
     },
-    isCorrectEventType(event) {
-      const eventType = event.body?.action?.type;
-      return eventType === "updateCard";
+    getSortField() {
+      return "dateLastActivity";
     },
-    async getResult(event) {
-      const cardId = event.body?.action?.data?.card?.id;
-      return this.trello.getCard(cardId);
+    isCorrectEventType({ type }) {
+      return type === "updateCard";
+    },
+    getResult({ data }) {
+      return this.app.getCard({
+        cardId: data?.card?.id,
+        params: {
+          customFieldItems: true,
+        },
+      });
     },
     isRelevant({ result: card }) {
       return (
         (!this.board || this.board === card.idBoard) &&
-        (!this.cards || this.cards.length === 0 || this.cards.includes(card.id))
+        (!this.cards?.length || this.cards.includes(card.id))
       );
     },
   },
+  sampleEmit,
 };

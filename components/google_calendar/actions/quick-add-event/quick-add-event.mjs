@@ -1,10 +1,11 @@
 import googleCalendar from "../../google_calendar.app.mjs";
+import createEventCommon from "../common/create-event-common.mjs";
 
 export default {
   key: "google_calendar-quick-add-event",
   name: "Add Quick Event",
-  description: "Create an event to the Google Calendar. [See the docs here](https://googleapis.dev/nodejs/googleapis/latest/calendar/classes/Resource$Events.html#quickAdd)",
-  version: "0.1.0",
+  description: "Create a quick event to the Google Calendar. [See the documentation](https://googleapis.dev/nodejs/googleapis/latest/calendar/classes/Resource$Events.html#quickAdd)",
+  version: "0.1.6",
   type: "action",
   props: {
     googleCalendar,
@@ -15,9 +16,15 @@ export default {
       ],
     },
     text: {
-      label: "Event Title",
       type: "string",
-      description: "Enter static text (e.g., `hello world`) for the event name",
+      label: "Describe Event",
+      description: "Write a plain text description of event, and Google will parse this string to create the event. eg. 'Meet with Michael 10am 7/22/2024' or 'Call Sarah at 1:30PM on Friday'",
+    },
+    attendees: {
+      label: "Attendees",
+      type: "string",
+      description: "Enter either an array or a comma separated list of email addresses of attendees",
+      optional: true,
     },
   },
   async run({ $ }) {
@@ -26,7 +33,19 @@ export default {
       text: this.text,
     });
 
-    $.export("$summary", `Successfully quick added event ${response.id}`);
+    if (this.attendees) {
+      const update = await this.googleCalendar.updateEvent({
+        calendarId: this.calendarId,
+        eventId: response.id,
+        requestBody: {
+          ...response,
+          attendees: createEventCommon.methods.formatAttendees(this.attendees),
+        },
+      });
+      response.attendees = update.attendees;
+    }
+
+    $.export("$summary", `Successfully added a quick event: "${response.id}"`);
 
     return response;
   },

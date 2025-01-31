@@ -1,0 +1,18 @@
+{
+  "name": "@pipedream/hypeauditor",
+  "version": "0.2.0",
+  "description": "Pipedream HypeAuditor Components",
+  "main": "hypeauditor.app.mjs",
+  "keywords": [
+    "pipedream",
+    "hypeauditor"
+  ],
+  "homepage": "https://pipedream.com/apps/hypeauditor",
+  "author": "Pipedream <support@pipedream.com> (https://pipedream.com/)",
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@pipedream/platform": "^3.0.3"
+  }
+}

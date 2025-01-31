@@ -1,5 +1,5 @@
-import crypto from "crypto";
 import base from "./http-based/base.mjs";
+import zlib from "zlib";
 
 /**
  * This module implements logic common to the "New Updates" sources. To create a
@@ -19,23 +19,15 @@ export default {
     },
   },
   methods: {
-    getMeta(spreadsheet, worksheet, changes) {
+    getMeta(spreadsheet, worksheet) {
       const {
         sheetId: worksheetId,
         title: worksheetTitle,
       } = worksheet.properties;
-      const {
-        spreadsheetId: sheetId,
-        properties: { title: sheetTitle },
-      } = spreadsheet;
-
-      const changesHash = crypto
-        .createHash("md5")
-        .update(JSON.stringify(changes))
-        .digest("base64");
+      const { properties: { title: sheetTitle } } = spreadsheet;
 
       const ts = Date.now();
-      const id = `${sheetId}${worksheetId}${changesHash}${ts}`;
+      const id = `${worksheetId}${ts}`;
       const summary = `${sheetTitle} - ${worksheetTitle}`;
       return {
         id,
@@ -62,10 +54,28 @@ export default {
       return this.worksheetIDs.map((i) => i.toString());
     },
     _getSheetValues(id) {
-      return this.db.get(id);
+      const stringBuffer = this.db.get(id);
+
+      if (!stringBuffer) {
+        return;
+      }
+
+      const buffer = Buffer.from(stringBuffer, "base64");
+      const decompressed = zlib.gunzipSync(buffer);
+      return JSON.parse(decompressed);
     },
     _setSheetValues(id, sheetValues) {
-      this.db.set(id, sheetValues);
+      const compressed = zlib.gzipSync(JSON.stringify(sheetValues));
+      const stringBuffer = compressed.toString("base64");
+      this.db.set(id, stringBuffer);
+    },
+    indexToColumnLabel(index) {
+      let columnLabel = "";
+      while (index >= 0) {
+        columnLabel = String.fromCharCode((index % 26) + 65) + columnLabel;
+        index = Math.floor(index / 26) - 1;
+      }
+      return columnLabel;
     },
     getContentChanges(colCount, newValues, oldValues, changes, i) {
       // loop through comparing the values of each cell
@@ -82,7 +92,7 @@ export default {
             : "";
         if (newValue !== oldValue) {
           changes.push({
-            cell: `${String.fromCharCode(j + 65)}:${i + 1}`,
+            cell: `${this.indexToColumnLabel(j)}:${i + 1}`,
             previous_value: oldValue,
             new_value: newValue,
           });
@@ -196,10 +206,9 @@ export default {
           this.$emit(
             {
               worksheet,
-              currentValues,
               changes,
             },
-            this.getMeta(spreadsheet, worksheet, changes),
+            this.getMeta(spreadsheet, worksheet),
           );
         }
         this._setSheetValues(

@@ -3,8 +3,8 @@ import hubspot from "../../hubspot.app.mjs";
 export default {
   key: "hubspot-get-file-public-url",
   name: "Get File Public URL",
-  description: "Get a publicly available URL for a file that was uploaded using a Hubspot form. [See the docs here](https://developers.hubspot.com/docs/api/files/files#endpoint?spec=GET-/files/v3/files/{fileId}/signed-url)",
-  version: "0.0.6",
+  description: "Get a publicly available URL for a file that was uploaded using a Hubspot form. [See the documentation](https://developers.hubspot.com/docs/api/files/files#endpoint?spec=GET-/files/v3/files/{fileId}/signed-url)",
+  version: "0.0.12",
   type: "action",
   props: {
     hubspot,
@@ -27,16 +27,18 @@ export default {
       fileUrl,
       expirationSeconds,
     } = this;
-    const { results: files } = await this.hubspot.searchFiles({
-      url: fileUrl,
-    });
-    const fileId = files?.[0]?.id;
+    const { results: files } = await this.hubspot.searchFiles();
+    const file = files.find(({ url }) => url === fileUrl );
+    const fileId = file.id;
     if (!fileId) {
       throw new Error(`File not found at ${fileUrl}`);
     }
     // result: { url: string }
-    const result = await this.hubspot.getSignedUrl(fileId, {
-      expirationSeconds,
+    const result = await this.hubspot.getSignedUrl({
+      fileId,
+      params: {
+        expirationSeconds,
+      },
     });
     $.export("$summary", "Successfully retrieved a publicly available URL");
     return result;

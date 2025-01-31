@@ -3,8 +3,8 @@ import hubspot from "../../hubspot.app.mjs";
 export default {
   key: "hubspot-add-contact-to-list",
   name: "Add Contact to List",
-  description: "Adds a contact to a specific static list. [See the docs here](https://legacydocs.hubspot.com/docs/methods/lists/add_contact_to_list)",
-  version: "0.0.6",
+  description: "Adds a contact to a specific static list. [See the documentation](https://legacydocs.hubspot.com/docs/methods/lists/add_contact_to_list)",
+  version: "0.0.12",
   type: "action",
   props: {
     hubspot,
@@ -33,9 +33,15 @@ export default {
       list,
       contactEmail,
     } = this;
-    const response = await this.hubspot.addContactsToList(list.value, [
-      contactEmail,
-    ], $);
+    const response = await this.hubspot.addContactsToList({
+      $,
+      listId: list.value,
+      data: {
+        emails: [
+          contactEmail,
+        ],
+      },
+    });
     $.export("$summary", "Successfully added contact to list");
     return response;
   },

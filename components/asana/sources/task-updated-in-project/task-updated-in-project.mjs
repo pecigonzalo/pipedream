@@ -5,9 +5,9 @@ export default {
   ...common,
   key: "asana-task-updated-in-project",
   type: "source",
-  name: "Task Updated In Project (Instant)",
+  name: "New Task Updated In Project (Instant)",
   description: "Emit new event for each update to a task.",
-  version: "1.1.0",
+  version: "1.1.6",
   dedupe: "unique",
   props: {
     ...common.props,
@@ -41,11 +41,38 @@ export default {
       propDefinition: [
         asana,
         "users",
+        ({ workspace }) => ({
+          workspace,
+        }),
       ],
+    },
+    delay: {
+      type: "integer",
+      label: "Delay In Seconds",
+      description: "How long to wait before emitting events.",
+      default: 15,
+      optional: true,
     },
   },
   methods: {
     ...common.methods,
+    getLastEventDate() {
+      return this.db.get("lastEventDate");
+    },
+    setLastEventDate(value) {
+      this.db.set("lastEventDate", value);
+    },
+    debounce(fn, delay = 15000) {
+      const lastEventDate = this.getLastEventDate();
+      if (lastEventDate) {
+        const diff = Date.now() - new Date(lastEventDate).getTime();
+        if (diff < delay) {
+          return;
+        }
+      }
+      fn();
+      this.setLastEventDate(new Date());
+    },
     getWebhookFilter() {
       return {
         filters: [
@@ -59,7 +86,7 @@ export default {
     },
     async emitEvent(event) {
       const {
-        tasks, user,
+        tasks, user, delay,
       } = this;
       const { events = [] } = event.body || {};
 
@@ -71,7 +98,9 @@ export default {
         })
         .map(async (event) => ({
           event,
-          task: await this.asana.getTask(event.resource.gid),
+          task: (await this.asana.getTask({
+            taskId: event.resource.gid,
+          })).data,
         }));
 
       const responses = await Promise.all(promises);
@@ -82,11 +111,11 @@ export default {
           event, task,
         }) => {
           const ts = Date.parse(event.created_at);
-          this.$emit(task, {
+          this.debounce(() => this.$emit(task, {
             id: `${task.gid}-${ts}`,
             summary: task.name,
             ts,
-          });
+          }), delay * 1000);
         });
     },
   },

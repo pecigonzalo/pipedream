@@ -1,24 +1,26 @@
-import app from "../../app/twitter.app";
+import common from "../../common/appValidation";
 import { ACTION_ERROR_MESSAGE } from "../../common/errorMessage";
 import { defineAction } from "@pipedream/types";
 import constants from "../../common/constants";
 import fs from "fs";
 import { axios } from "@pipedream/platform";
+import FormData from "form-data";
 
 const DOCS_LINK = "https://developer.twitter.com/en/docs/twitter-api/v1/media/upload-media/api-reference/post-media-upload";
 
 export default defineAction({
+  ...common,
   key: "twitter-upload-media",
   name: "Upload Media",
   description: `Upload new media. [See the documentation](${DOCS_LINK})`,
-  version: "0.0.5",
+  version: "0.0.12",
   type: "action",
   props: {
-    app,
+    ...common.props,
     filePath: {
       type: "string",
       label: "File Path",
-      description: "The file path to upload.",
+      description: "A file URL or a file path in the `/tmp` directory. [See the documentation on working with files.](https://pipedream.com/docs/code/nodejs/working-with-files/)",
       optional: false,
     },
     media_category: {
@@ -26,32 +28,47 @@ export default defineAction({
       label: "Media Category",
       description: "The category representing the media usage.",
       options: constants.MEDIA_CATEGORIES,
-      optional: false,
+      optional: true,
     },
   },
   async run({ $ }): Promise<object> {
+    const isLocalFile = this.filePath?.startsWith("/tmp");
+    let content;
+
     try {
-      const base64File = this.filePath.startsWith("/tmp")
-        ? fs.readFileSync(this.filePath, "base64")
-        : Buffer.from(await axios($, {
+      content = isLocalFile
+        ? fs.createReadStream(this.filePath, {
+          encoding: "base64",
+        })
+        : await axios($, {
           url: this.filePath,
           responseType: "arraybuffer",
-        })).toString("base64");
+        });
 
-      const response = await this.app.uploadMedia({
-        $,
-        params: encodeURIComponent(JSON.stringify({
-          media_category: this.media_category,
-          media_data: base64File,
-        })),
-      });
-
-      $.export("$summary", `Successfully uploaded media with ID ${response.media_id}`);
-
-      return response;
     } catch (err) {
       $.export("error", err);
       throw new Error(ACTION_ERROR_MESSAGE);
     }
+
+    const data = new FormData();
+
+    if (isLocalFile) {
+      data.append("media_data", content);
+    } else {
+      data.append("media", content);
+    }
+
+    const response = await this.app.uploadMedia({
+      $,
+      data,
+      params: {
+        media_category: this.media_category,
+      },
+      fallbackError: ACTION_ERROR_MESSAGE,
+    });
+
+    $.export("$summary", `Successfully uploaded media with ID ${response.media_id}`);
+
+    return response;
   },
 });

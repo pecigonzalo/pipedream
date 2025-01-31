@@ -1,4 +1,7 @@
 import { ConfigurationError } from "@pipedream/platform";
+import constants from "../../common/constants.mjs";
+import { parse } from "../../common/helpers.mjs";
+import fs from "fs";
 
 const CHAT_DOCS_MESSAGE_FORMAT_URL = "https://platform.openai.com/docs/guides/chat/introduction";
 
@@ -77,6 +80,40 @@ export default {
         user: this.user,
       };
     },
+    _getUserMessageContent() {
+      let content = [];
+      if (this.images) {
+        for (const image of this.images) {
+          content.push({
+            "type": "image_url",
+            "image_url": {
+              "url": image,
+            },
+          });
+        }
+      }
+
+      if (this.audio) {
+        const fileContent = fs.readFileSync(this.audio.includes("tmp/")
+          ? this.audio
+          : `/tmp/${this.audio}`).toString("base64");
+        const extension = this.audio.match(/\.(\w+)$/)?.[1];
+        content.push({
+          type: "input_audio",
+          input_audio: {
+            data: fileContent,
+            format: extension,
+          },
+        });
+      }
+
+      content.push({
+        "type": "text",
+        "text": this.userMessage,
+      });
+
+      return content;
+    },
     _getChatArgs() {
       if (this.messages && this.messages.length && !this.userMessage) {
         throw new ConfigurationError(
@@ -112,13 +149,6 @@ export default {
           }
           messages.push(parsed);
         }
-        // Finally, we want to append the user message to the end of the array
-        if (this.userMessage) {
-          messages.push({
-            "role": "user",
-            "content": this.userMessage,
-          });
-        }
       } else {
         if (this.systemInstructions) {
           messages.push({
@@ -126,14 +156,32 @@ export default {
             "content": this.systemInstructions,
           });
         }
-        messages.push({
-          "role": "user",
-          "content": this.userMessage,
-        });
+      }
+
+      messages.push({
+        "role": "user",
+        "content": this._getUserMessageContent(),
+      });
+
+      const responseFormat = {};
+
+      const jsonSchemaObj =
+        this.responseFormat === constants.CHAT_RESPONSE_FORMAT.JSON_SCHEMA.value
+          ? {
+            json_schema: parse(this.jsonSchema),
+          }
+          : {};
+
+      if (this.modelId != "gpt-4-vision-preview") {
+        responseFormat["response_format"] = {
+          type: this.responseFormat,
+          ...jsonSchemaObj,
+        };
       }
 
       return {
         ...this._getCommonArgs(),
+        ...responseFormat,
         messages,
       };
     },

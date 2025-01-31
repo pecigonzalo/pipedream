@@ -1,4 +1,3 @@
-import app from "../../app/twitter.app";
 import { defineSource } from "@pipedream/types";
 import common from "../common/base";
 import { getUserSummary as getItemSummary } from "../common/getItemSummary";
@@ -9,19 +8,22 @@ import {
 import { User } from "../../common/types/responseSchemas";
 import { GetUserFollowersParams } from "../../common/types/requestParams";
 import cacheUserId from "../common/cacheUserId";
+import {
+  getObjIncludes, getUserIncludeIds,
+} from "../../common/addObjIncludes";
 
 export default defineSource({
   ...common,
   key: "twitter-new-unfollower-of-user",
   name: "New Unfollower of User",
   description: `Emit new event when the specified User loses a Follower [See the documentation](${DOCS_LINK})`,
-  version: "2.0.2",
+  version: "2.1.0",
   type: "source",
   props: {
     ...common.props,
     userNameOrId: {
       propDefinition: [
-        app,
+        common.props.app,
         "userNameOrId",
       ],
     },
@@ -48,7 +50,10 @@ export default defineSource({
         userId,
       };
 
-      const { data } = await this.app.getUserFollowers(params);
+      const {
+        data, includes,
+      } = await this.app.getUserFollowers(params);
+      data.forEach((user) => user.includes = getObjIncludes(user, includes, getUserIncludeIds));
       return data;
     },
     async getAndProcessData(emit = false) {

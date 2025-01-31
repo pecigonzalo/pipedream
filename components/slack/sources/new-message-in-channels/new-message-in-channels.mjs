@@ -1,11 +1,12 @@
 import common from "../common/base.mjs";
 import constants from "../common/constants.mjs";
+import sampleEmit from "./test-event.mjs";
 
 export default {
   ...common,
   key: "slack-new-message-in-channels",
   name: "New Message In Channels (Instant)",
-  version: "1.0.11",
+  version: "1.0.22",
   description: "Emit new event when a new message is posted to one or more channels",
   type: "source",
   dedupe: "unique",
@@ -43,6 +44,12 @@ export default {
         "ignoreBot",
       ],
     },
+    ignoreThreads: {
+      type: "boolean",
+      label: "Ignore replies in threads",
+      description: "Ignore replies to messages in threads",
+      optional: true,
+    },
   },
   methods: {
     ...common.methods,
@@ -65,6 +72,12 @@ export default {
       if ((this.ignoreBot) && (event.subtype == "bot_message" || event.bot_id)) {
         return;
       }
+      // There is no thread message type only the thread_ts field
+      // indicates if the message is part of a thread in the event.
+      if (this.ignoreThreads && event.thread_ts) {
+        console.log("Ignoring reply in thread");
+        return;
+      }
       if (this.resolveNames) {
         if (event.user) {
           event.user_id = event.user;
@@ -82,4 +95,5 @@ export default {
       return event;
     },
   },
+  sampleEmit,
 };

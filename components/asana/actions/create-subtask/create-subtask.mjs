@@ -4,8 +4,8 @@ import common from "../common/common.mjs";
 export default {
   key: "asana-create-subtask",
   name: "Create Subtask",
-  description: "Creates a new subtask and adds it to the parent task. [See the docs here](https://developers.asana.com/docs/create-a-subtask)",
-  version: "0.3.2",
+  description: "Creates a new subtask and adds it to the parent task. [See the documentation](https://developers.asana.com/docs/create-a-subtask)",
+  version: "0.4.0",
   type: "action",
   props: {
     ...common.props,
@@ -34,6 +34,9 @@ export default {
       propDefinition: [
         asana,
         "users",
+        ({ workspace }) => ({
+          workspace,
+        }),
       ],
     },
     assignee_section: {
@@ -75,6 +78,9 @@ export default {
       propDefinition: [
         asana,
         "users",
+        ({ workspace }) => ({
+          workspace,
+        }),
       ],
     },
     html_notes: {
@@ -104,7 +110,8 @@ export default {
     },
   },
   async run({ $ }) {
-    const response = await this.asana._makeRequest(`tasks/${this.task_gid}/subtasks`, {
+    const response = await this.asana._makeRequest({
+      path: `tasks/${this.task_gid}/subtasks`,
       method: "post",
       data: {
         data: {
@@ -123,7 +130,8 @@ export default {
           workspace: this.workspace,
         },
       },
-    }, $);
+      $,
+    });
 
     $.export("$summary", "Successfully created subtask");
 

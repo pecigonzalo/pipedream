@@ -1,4 +1,3 @@
-import app from "../../app/twitter.app";
 import { defineSource } from "@pipedream/types";
 import common from "../common/base";
 import { getListSummary as getItemSummary } from "../common/getItemSummary";
@@ -6,6 +5,9 @@ import { List } from "../../common/types/responseSchemas";
 import { getListFields } from "../../common/methods";
 import { GetUserFollowedListsParams } from "../../common/types/requestParams";
 import cacheUserId from "../common/cacheUserId";
+import {
+  getListIncludeIds, getObjIncludes,
+} from "../../common/addObjIncludes";
 
 const DOCS_LINK = "https://developer.twitter.com/en/docs/twitter-api/lists/list-follows/api-reference/get-users-id-followed_lists";
 const MAX_RESULTS_PER_PAGE = 100;
@@ -15,13 +17,13 @@ export default defineSource({
   key: "twitter-new-list-followed",
   name: "New List Followed by User",
   description: `Emit new event when the specified User follows a List [See the documentation](${DOCS_LINK})`,
-  version: "2.0.2",
+  version: "2.1.0",
   type: "source",
   props: {
     ...common.props,
     userNameOrId: {
       propDefinition: [
-        app,
+        common.props.app,
         "userNameOrId",
       ],
     },
@@ -44,7 +46,10 @@ export default defineSource({
         userId,
       };
 
-      const { data } = await this.app.getUserFollowedLists(params);
+      const {
+        data, includes,
+      } = await this.app.getUserFollowedLists(params);
+      data.forEach((list) => list.includes = getObjIncludes(list, includes, getListIncludeIds));
       return data;
     },
   },

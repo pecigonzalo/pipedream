@@ -8,6 +8,15 @@ async function streamIterator(stream) {
   return resources;
 }
 
+function strToObj(str) {
+  var obj = {};
+  if (str && typeof str === "string") {
+    var objStr = str.match(/\{(.)+\}/g);
+    eval("obj =" + objStr);
+  }
+  return obj;
+}
+
 function buildVariables(endCursor, args) {
   const title = args.filter.query
     ? `title: { containsIgnoreCase: "${args.filter.query}" }`
@@ -18,13 +27,13 @@ function buildVariables(endCursor, args) {
   const projectId = args.filter.projectId
     ? `, project: { id: { eq: "${args.filter.projectId}" } }`
     : "";
-  const team = args.filter.team
+  const team = args.filter.team && args.filter.team.id
     ? `, team: { id: { in: ${JSON.stringify(args.filter.team.id.in)} } }`
     : "";
   const project = args.filter.project && args.filter.project.id.eq
     ? `, project: { id: { eq: "${args.filter.project.id.eq}" } }`
     : "";
-  const state = args.filter.state
+  const state = args.filter.state && args.filter.state.id.eq
     ? `, state: { id: { eq: "${args.filter.state.id.eq}" } }`
     : "";
   const assigneeId = args.filter.assigneeId
@@ -33,13 +42,16 @@ function buildVariables(endCursor, args) {
   const issueLabels = args.filter.issueLabels
     ? `, labels: { name: { in: ${JSON.stringify(args.filter.issueLabels)} } }`
     : "";
-  let filter = `${title}${teamId}${projectId}${team}${project}${state}${assigneeId}${issueLabels}`;
+  const createdAt = args.filter.createdAt
+    ? `, createdAt: { gte: "${args.filter.createdAt.gte}" }`
+    : "";
+  let filter = `${title}${teamId}${projectId}${team}${project}${state}${assigneeId}${issueLabels}${createdAt}`;
   if (filter[0] === ",") {
     filter = filter.substring(2, filter.length);
   }
 
   const orderBy = args.orderBy
-    ? `, orderBy: ${args.orderBy}`
+    ? `, orderBy: "${args.orderBy}"`
     : "";
   const includeArchived = args.includeArchived
     ? `, includeArchived: ${args.includeArchived}`
@@ -47,10 +59,11 @@ function buildVariables(endCursor, args) {
   const after = endCursor
     ? `, after: "${endCursor}"`
     : "";
-  return `filter: { ${filter} }, first: ${constants.DEFAULT_LIMIT}${orderBy}${includeArchived}${after}`;
+  return strToObj(`{ filter: { ${filter} }, first: ${constants.DEFAULT_LIMIT}${orderBy}${includeArchived}${after} }`);
 }
 
 export default {
   streamIterator,
+  strToObj,
   buildVariables,
 };
